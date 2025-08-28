@@ -1,54 +1,12 @@
-import type { Servicio } from "./parseData";
-
-// Function to group services by year and month
-export function groupServicesByYearAndMonth(servicios: Servicio[]): Record<number, Record<number, Servicio[]>> {
-  const groupedServices: Record<number, Record<number, Servicio[]>> = {};
-  
-  servicios.forEach(servicio => {
-    // Skip services without valid year or month
-    if (!servicio.anno || !servicio.mes) {
-        console.log(servicio)
-      console.warn('Servicio sin año o mes válido:', servicio.id);
-      return;
-    }
-    
-    const ano = servicio.anno;
-    const mes = servicio.mes;
-    
-    // Initialize year if doesn't exist
-    if (!groupedServices[ano]) {
-      groupedServices[ano] = {};
-    }
-    
-    // Initialize month if doesn't exist
-    if (!groupedServices[ano][mes]) {
-      groupedServices[ano][mes] = [];
-    }
-    
-    // Add service to the corresponding year and month
-    groupedServices[ano][mes].push(servicio);
-  });
-  
-  // Sort services within each month by date
-  Object.keys(groupedServices).forEach(ano => {
-    Object.keys(groupedServices[parseInt(ano)]).forEach(mes => {
-      groupedServices[parseInt(ano)][parseInt(mes)].sort((a, b) => {
-        if (!a.fechaPedido || !b.fechaPedido) return 0;
-        return a.fechaPedido.getTime() - b.fechaPedido.getTime();
-      });
-    });
-  });
-  
-  return groupedServices;
-}
+import { type Servicio, nullDateValue } from "@/components/service";
 
 // Alternative function that returns a flatter structure: {"año": Servicio[]}
-export function groupServicesByYear(servicios: Servicio[]): Record<number, Servicio[]> {
-  const groupedServices: Record<number, Servicio[]> = {};
+export function groupServicesByYear(servicios: Servicio[]): Record<string, Servicio[]> {
+  const groupedServices: Record<string, Servicio[]> = {};
   
   servicios.forEach(servicio => {
     // Skip services without valid year
-    if (!servicio.anno) {
+    if (!servicio.anno || servicio.anno === nullDateValue) {
       console.warn('Servicio sin año válido:', servicio.id);
       return;
     }
@@ -66,15 +24,23 @@ export function groupServicesByYear(servicios: Servicio[]): Record<number, Servi
   
   // Sort services within each year by date and month
   Object.keys(groupedServices).forEach(ano => {
-    groupedServices[parseInt(ano)].sort((a, b) => {
-      // First sort by month
-      if (a.mes !== b.mes && a.mes && b.mes) {
-        return a.mes - b.mes;
+    groupedServices[ano].sort((a, b) => {
+      // First sort by month (convert to numbers for comparison)
+      if (a.mes && a.mes !== nullDateValue && b.mes && b.mes !== nullDateValue) {
+        const mesA = parseInt(a.mes as string);
+        const mesB = parseInt(b.mes as string);
+        if (mesA !== mesB) {
+          return mesA - mesB;
+        }
       }
       
       // Then sort by date within the same month
-      if (!a.fechaPedido || !b.fechaPedido) return 0;
-      return a.fechaPedido.getTime() - b.fechaPedido.getTime();
+      if (!a.fechaPedido || a.fechaPedido === nullDateValue || 
+          !b.fechaPedido || b.fechaPedido === nullDateValue) return 0;
+      
+      const dateA = new Date(a.fechaPedido);
+      const dateB = new Date(b.fechaPedido);
+      return dateA.getTime() - dateB.getTime();
     });
   });
   
