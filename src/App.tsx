@@ -1,22 +1,54 @@
-import { useState } from "react"
+import { useMemo } from "react"
 import { FileUploader } from "@/components/FileUploader"
 import { StatisticsDashboard } from "@/components/StatisticsDashboard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui/card"
-import { BarChart3, Upload, FileText } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/ui/alert"
+import { Badge } from "@/ui/badge"
+import { BarChart3, Upload, FileText, CheckCircle, AlertTriangle, Loader2, File } from "lucide-react"
 import type { DatosCSV } from "./utils/parseData"
+import useExcelFile from "./components/useExcelFile"
 
-interface FileData {
-  headers: string[]
-  rows: any[][]
-  rawData: any[]
-}
+export default function App() {
+  const {
+    selectedFile,
+    sheets,
+    isLoading,
+    error,
+    hasFile,
+    sheetsCount,
+    totalRows,
+    handleInputChange,
+    resetFile
+  } = useExcelFile()
 
-export default function Home() {
-  const [fileData, setFileData] = useState<DatosCSV | null>(null)
+  // Convertir datos del hook al formato esperado por el componente
+  const fileData = useMemo((): DatosCSV | null => {
+    if (!hasFile || sheets.length === 0) return null
+
+    // Tomar la primera hoja como datos principales
+    const mainSheet = sheets[0]
+    if (!mainSheet.data.length) return null
+
+    // Extraer headers de la primera fila de datos
+    const headers = Object.keys(mainSheet.data[0])
+    
+    // Convertir datos a formato de filas
+    const rows = mainSheet.data.map(row => 
+      headers.map(header => row[header])
+    )
+
+    return {
+      headers,
+      rows,
+      rawData: mainSheet.data
+    } as DatosCSV
+  }, [hasFile, sheets])
 
   const handleDataLoaded = (data: DatosCSV) => {
-    setFileData(data)
+    // Esta función ahora es manejada por el hook
+    // pero mantenemos la interfaz para compatibilidad
+    console.log('Data loaded via hook:', data)
   }
 
   return (
@@ -38,6 +70,19 @@ export default function Home() {
                 </p>
               </div>
             </div>
+            
+            {/* Indicador de estado del archivo */}
+            {hasFile && (
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <File className="h-3 w-3" />
+                  {selectedFile?.name}
+                </Badge>
+                <Badge variant="secondary">
+                  {sheetsCount} hoja{sheetsCount !== 1 ? 's' : ''} • {totalRows} filas
+                </Badge>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -50,9 +95,14 @@ export default function Home() {
               <Upload className="h-4 w-4" />
               Cargar Datos
             </TabsTrigger>
-            <TabsTrigger value="statistics" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="statistics" 
+              className="flex items-center gap-2"
+              disabled={!hasFile || isLoading}
+            >
               <FileText className="h-4 w-4" />
               Estadísticas
+              {hasFile && <CheckCircle className="h-3 w-3 text-green-500" />}
             </TabsTrigger>
           </TabsList>
 
@@ -66,53 +116,114 @@ export default function Home() {
               </p>
             </div>
 
-            <FileUploader onDataLoaded={handleDataLoaded} />
+            {/* Estados de carga y error */}
+            {isLoading && (
+              <Alert>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertTitle>Procesando archivo...</AlertTitle>
+                <AlertDescription>
+                  Estamos procesando tu archivo Excel. Por favor espera.
+                </AlertDescription>
+              </Alert>
+            )}
 
-            {fileData && (
-              <Card className="mt-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Error al procesar archivo</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Información del archivo cargado */}
+            {hasFile && !isLoading && !error && (
+              <Card>
                 <CardHeader>
-                  <CardTitle>Vista Previa de Datos</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    Archivo cargado correctamente
+                  </CardTitle>
                   <CardDescription>
-                    Primeros 5 registros del archivo cargado
+                    {selectedFile?.name} • {selectedFile ? (selectedFile.size / 1024 / 1024).toFixed(2) : '0'} MB
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          {fileData.headers.slice(0, 8).map((header, index) => (
-                            <th
-                              key={index}
-                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Hojas encontradas:</span>
+                      <Badge variant="outline">{sheetsCount}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Total de filas:</span>
+                      <Badge variant="outline">{totalRows}</Badge>
+                    </div>
+                    
+                    {/* Lista de hojas */}
+                    {sheets.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-sm text-gray-600">Hojas disponibles:</span>
+                        <div className="grid gap-2">
+                          {sheets.map((sheet) => (
+                            <div 
+                              key={sheet.sheetName} 
+                              className="flex items-center justify-between p-2 bg-gray-50 rounded"
                             >
-                              {header}
-                            </th>
+                              <span className="text-sm font-medium">{sheet.sheetName}</span>
+                              <Badge variant="secondary">
+                                {sheet.rowCount} filas
+                              </Badge>
+                            </div>
                           ))}
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {fileData.rows.slice(0, 5).map((row, rowIndex) => (
-                          <tr key={rowIndex}>
-                            {row.slice(0, 8).map((cell, cellIndex) => (
-                              <td
-                                key={cellIndex}
-                                className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
-                              >
-                                {cell}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-3">
+                      <button
+                        onClick={resetFile}
+                        className="px-4 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                      >
+                        Eliminar archivo
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-500 mt-4">
-                    Mostrando 5 de {fileData.rows.length} registros totales
-                  </p>
                 </CardContent>
               </Card>
             )}
+
+            {/* Input de archivo personalizado */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Seleccionar archivo</CardTitle>
+                <CardDescription>
+                  Selecciona un archivo Excel (.xlsx, .xls) o CSV para cargar los datos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <input
+                    type="file"
+                    name="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+                  />
+                  
+                  <div className="text-xs text-gray-500">
+                    Formatos soportados: Excel (.xlsx, .xls), CSV • Tamaño máximo: 10MB
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Mantener el FileUploader original como alternativa */}
+            <div className="border-t pt-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                O usa el cargador avanzado:
+              </h3>
+              <FileUploader onDataLoaded={handleDataLoaded} />
+            </div>
           </TabsContent>
 
           <TabsContent value="statistics" className="space-y-6">
@@ -125,7 +236,21 @@ export default function Home() {
               </p>
             </div>
 
-            <StatisticsDashboard data={fileData} />
+            {!hasFile ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No hay datos cargados
+                  </h3>
+                  <p className="text-gray-500 mb-4">
+                    Primero debes cargar un archivo en la pestaña "Cargar Datos"
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <StatisticsDashboard data={fileData} />
+            )}
           </TabsContent>
         </Tabs>
       </main>
