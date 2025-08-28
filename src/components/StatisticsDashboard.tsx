@@ -1,8 +1,7 @@
 
 import { Card, CardContent } from "@/ui/card"
-import { parsearDatosServicioDesdeRaw, type DatosCSV } from "@/utils/parseData"
-import { groupServicesByYearAndMonth } from "@/utils/getByYear"
-import { analizarServiciosPorMes } from "@/utils/numerosBasicos"
+import { parsearDatosServicio, type DatosCSV } from "@/utils/parseData"
+import { groupServicesByYear } from "@/utils/getByYear"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -10,16 +9,13 @@ interface StatisticsDashboardProps {
 
 export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
   console.log(data)
-  const wholeData = parsearDatosServicioDesdeRaw(data ? data : {
+  const wholeData = parsearDatosServicio(data ? data : {
   headers: [],
   rows: [],
   rawData: [],
 })
-  const groupData = groupServicesByYearAndMonth(wholeData)
-
+  const groupData = groupServicesByYear(wholeData)
   console.log(groupData)
-  console.log(analizarServiciosPorMes(groupData["2024"]))
-  console.log(analizarServiciosPorMes(groupData["2025"]))
 
   if (!data) {
     return (

@@ -1,4 +1,3 @@
-import type { Servicio } from "@/utils/parseData";
 import {
   Table,
   TableBody,
@@ -9,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/ui/table";
+import type { Servicio } from "./service";
 
 export function TablaServicios({ servicios }: { servicios: Servicio[] }) {
   return (
