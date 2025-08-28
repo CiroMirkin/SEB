@@ -1,25 +1,6 @@
 // Interface for defining the parsed object structure
-export interface Servicio {
-  id: string;
-  marcaTemporal: string;
-  horaLlamado: string;
-  fechaPedido: Date | null;
-  mes: number | null; // Mes extraído de fechaPedido (1-12)
-  anno: number | null; // Año extraído de fechaPedido
-  numeroPartE: string;
-  codigoServicio: string;
-  ubicacionDireccion: string;
-  localidad: string;
-  tipoServicio: string;
-  descripcion: string;
-  movilesIntervinientes: string[]; // Fusión de movil + movilInterviniente1-3
-  personalInterviniente: number | string; // Can be number or names separated by commas
-  datos: string;
-  cantidadUnidadIntervinientes: number | null;
-  seRealizoTraslado: boolean | null;
-  superficieAfectada: string;
-  horarioLlamado: string;
-}
+
+import { nullDateValue, type NullDate, type Servicio } from "@/components/service";
 
 // Interface for input data
 export interface DatosCSV {
@@ -46,40 +27,34 @@ const toBool = (val: any): boolean | null => {
   return null;
 };
 
-const parseDate = (input: any): Date | null => {
-  if (!input) return null;
+const parseDate = (input: any): string | NullDate => {
+  console.log("parseDate", input)
+  if (!input) return nullDateValue;
   
   const str = toStr(input);
-  if (!str) return null;
-  
-  try {
-    // Normalize 2-digit years to 4-digit (00-30 -> 20xx, 31-99 -> 19xx)
-    const normalized = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/, (_, d, m, y) => {
-      const year = parseInt(y) <= 30 ? `20${y.padStart(2, '0')}` : `19${y.padStart(2, '0')}`;
-      return `${d}/${m}/${year}`;
-    });
-    
-    const match = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      const [, day, month, year] = match.map(Number);
-      const date = new Date(year, month - 1, day);
-      // Validate date
-      if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
-        return date;
-      }
-    }
-    
-    const date = new Date(normalized);
-    return isNaN(date.getTime()) ? null : date;
-  } catch {
-    return null;
-  }
+  if (!str) return nullDateValue;
+  console.log("date", input)
+  return `${input}`
 };
 
-const extractMonthYear = (date: Date | null) => ({
-  mes: date && !isNaN(date.getTime()) ? date.getMonth() + 1 : null,
-  anno: date && !isNaN(date.getTime()) ? date.getFullYear() : null
-});
+const extractMonthYear = (date: string | NullDate) => {
+  console.log("extractMonthYear", date)
+  if(date == nullDateValue) return ({
+    mes: nullDateValue,
+    anno: nullDateValue
+  })
+  
+  let year = date.split('/')[2]
+  if(year.length == 2) year = `20${year}`
+
+  let month = date.split('/')[1]
+  if(month.length == 1) month = `0${month}`
+
+  return ({
+    mes: date ? month + 1 : nullDateValue,
+    anno: date ? year : nullDateValue
+  })
+}
 
 const parseMoviles = (...moviles: any[]): string[] => 
   moviles
@@ -108,11 +83,13 @@ const parsePersonal = (val: any): number | string => {
 // Main parsing function using rows
 export function parsearDatosServicio(datos: DatosCSV): Servicio[] {
   return datos.rows.map((row, index) => {
+    console.log(index, " ", row)
     try {
       const fechaPedido = parseDate(row[2]);
       const { mes, anno } = extractMonthYear(fechaPedido);
       
       return {
+        indexRow: index,
         id: crypto.randomUUID(),
         marcaTemporal: toStr(row[0]),
         horaLlamado: toStr(row[1]),
@@ -148,6 +125,7 @@ export function parsearDatosServicioDesdeRaw(datos: DatosCSV): Servicio[] {
       const { mes, anno } = extractMonthYear(fechaPedido);
       
       return {
+        indexRow: index,
         id: crypto.randomUUID(),
         marcaTemporal: toStr(item["Marca temporal"]),
         horaLlamado: toStr(item["HORA DEL LLAMADO"]),
