@@ -4,6 +4,7 @@ import { StatisticsDashboard } from "@/components/StatisticsDashboard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui/card"
 import { BarChart3, Upload, FileText } from "lucide-react"
+import type { DatosCSV } from "./utils/parseData"
 
 interface FileData {
   headers: string[]
@@ -12,9 +13,9 @@ interface FileData {
 }
 
 export default function Home() {
-  const [fileData, setFileData] = useState<FileData | null>(null)
+  const [fileData, setFileData] = useState<DatosCSV | null>(null)
 
-  const handleDataLoaded = (data: FileData) => {
+  const handleDataLoaded = (data: DatosCSV) => {
     setFileData(data)
   }
 

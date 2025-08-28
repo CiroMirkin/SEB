@@ -4,6 +4,8 @@ export interface Servicio {
   marcaTemporal: string;
   horaLlamado: string;
   fechaPedido: Date | null;
+  mes: number | null; // Mes extraído de fechaPedido (1-12)
+  anno: number | null; // Año extraído de fechaPedido
   numeroPartE: string;
   codigoServicio: string;
   ubicacionDireccion: string;
@@ -20,359 +22,159 @@ export interface Servicio {
 }
 
 // Interface for input data
-interface DatosCSV {
+export interface DatosCSV {
   headers: string[];
   rows: any[][];
   rawData: any[];
 }
 
-// Function to convert Excel serial date to Date object
-function convertirFechaExcel(serial: number): Date | null {
-  if (!serial || typeof serial !== 'number') return null;
+// Utility functions
+const toStr = (val: any): string => String(val || '').trim();
+
+const toNum = (val: any): number | null => {
+  if (!val || val === '') return null;
+  if (typeof val === 'number') return val;
+  const num = parseFloat(String(val).replace(',', '.'));
+  return isNaN(num) ? null : num;
+};
+
+const toBool = (val: any): boolean | null => {
+  if (!val || val === '') return null;
+  const str = toStr(val).toLowerCase();
+  if (['sí', 'si', 'yes', 'true', '1', 'verdadero'].includes(str)) return true;
+  if (['no', 'false', '0', 'falso'].includes(str)) return false;
+  return null;
+};
+
+const parseDate = (input: any): Date | null => {
+  if (!input) return null;
+  
+  const str = toStr(input);
+  if (!str) return null;
   
   try {
-    // Excel epoch starts at January 1, 1900
-    const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
-    const fecha = new Date(excelEpoch.getTime() + serial * 86400000);
-    return fecha;
-  } catch (error) {
-    console.warn(`Error converting Excel date: ${serial}`, error);
+    // Normalize 2-digit years to 4-digit (00-30 -> 20xx, 31-99 -> 19xx)
+    const normalized = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/, (_, d, m, y) => {
+      const year = parseInt(y) <= 30 ? `20${y.padStart(2, '0')}` : `19${y.padStart(2, '0')}`;
+      return `${d}/${m}/${year}`;
+    });
+    
+    const match = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      const [, day, month, year] = match.map(Number);
+      const date = new Date(year, month - 1, day);
+      // Validate date
+      if (date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day) {
+        return date;
+      }
+    }
+    
+    const date = new Date(normalized);
+    return isNaN(date.getTime()) ? null : date;
+  } catch {
     return null;
   }
-}
+};
 
-// Function to convert Excel time serial to time string
-function convertirHoraExcel(serial: number): string {
-  if (!serial || typeof serial !== 'number') return '';
-  
-  try {
-    // Convert serial to total seconds
-    const totalSeconds = Math.round(serial * 86400);
-    
-    // Calculate hours, minutes, seconds
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    
-    // Format as HH:MM:SS
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  } catch (error) {
-    console.warn(`Error converting Excel time: ${serial}`, error);
-    return '';
-  }
-}
+const extractMonthYear = (date: Date | null) => ({
+  mes: date && !isNaN(date.getTime()) ? date.getMonth() + 1 : null,
+  anno: date && !isNaN(date.getTime()) ? date.getFullYear() : null
+});
 
-// Function to normalize year in date
-function normalizarAno(fechaStr: string): string {
-  if (!fechaStr) return fechaStr;
-  
-  // Handle year patterns of 2 digits and convert to 4 digits
-  const patron2Digitos = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
-  const patron4Digitos = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-  
-  if (patron2Digitos.test(fechaStr) && !patron4Digitos.test(fechaStr)) {
-    return fechaStr.replace(patron2Digitos, (match, dia, mes, ano) => {
-      const anoNum = parseInt(ano);
-      const anoCompleto = anoNum <= 30 ? `20${ano.padStart(2, '0')}` : `19${ano.padStart(2, '0')}`;
-      return `${dia}/${mes}/${anoCompleto}`;
-    });
-  }
-  
-  return fechaStr;
-}
+const parseMoviles = (...moviles: any[]): string[] => 
+  moviles
+    .map(toStr)
+    .filter(m => m !== '')
+    .filter((m, i, arr) => arr.indexOf(m) === i); // Remove duplicates
 
-// Function to parse date considering different formats
-export function parsearFecha(fechaInput: any): Date | null {
-  if (!fechaInput) return null;
+const parsePersonal = (val: any): number | string => {
+  if (!val || val === '') return 0;
+  if (typeof val === 'number') return val;
   
-  // If it's a number (Excel serial date)
-  if (typeof fechaInput === 'number') {
-    return convertirFechaExcel(fechaInput);
-  }
+  const str = toStr(val);
+  const num = parseFloat(str);
   
-  // If it's a string
-  if (typeof fechaInput === 'string') {
-    const fechaStr = fechaInput.trim();
-    if (fechaStr === '') return null;
-    
-    try {
-      const fechaNormalizada = normalizarAno(fechaStr);
-      
-      const match = fechaNormalizada.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-      if (match) {
-        const [, dia, mes, ano] = match;
-        const fecha = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-        
-        if (fecha.getFullYear() == parseInt(ano) && 
-            fecha.getMonth() == parseInt(mes) - 1 && 
-            fecha.getDate() == parseInt(dia)) {
-          return fecha;
-        }
-      }
-      
-      const fecha = new Date(fechaNormalizada);
-      return isNaN(fecha.getTime()) ? null : fecha;
-      
-    } catch (error) {
-      console.warn(`Error parsing date: ${fechaInput}`, error);
-      return null;
-    }
-  }
+  // If it's a valid number, return it
+  if (!isNaN(num)) return num;
   
-  return null;
-}
+  // If contains names indicators, return as string
+  if (str.includes(',') || /\b(y|bombero)\b/i.test(str)) return str;
+  
+  // Try to extract number from string
+  const numFromStr = parseFloat(str.replace(/[^\d.,]/g, '').replace(',', '.'));
+  return !isNaN(numFromStr) ? numFromStr : str;
+};
 
-// Function to parse time input
-function parsearHora(horaInput: any): string {
-  if (!horaInput) return '';
-  
-  // If it's a number (Excel serial time)
-  if (typeof horaInput === 'number') {
-    return convertirHoraExcel(horaInput);
-  }
-  
-  // If it's already a string
-  if (typeof horaInput === 'string') {
-    return horaInput.trim();
-  }
-  
-  return '';
-}
-
-// Function to convert string to boolean
-function parsearBooleano(valor: any): boolean | null {
-  if (!valor || valor === '') return null;
-  
-  const valorStr = String(valor).toLowerCase().trim();
-  
-  if (['sí', 'si', 'yes', 'true', '1', 'verdadero'].includes(valorStr)) {
-    return true;
-  }
-  
-  if (['no', 'false', '0', 'falso'].includes(valorStr)) {
-    return false;
-  }
-  
-  return null;
-}
-
-// Function to convert string to number
-function parsearNumero(valor: any): number | null {
-  if (!valor || valor === '') return null;
-  
-  if (typeof valor === 'number') return valor;
-  
-  const numero = parseFloat(String(valor).replace(',', '.'));
-  return isNaN(numero) ? null : numero;
-}
-
-// Function to parse moviles intervinientes into array
-function parsearMovilesIntervinientes(movil: any, movil1: any, movil2: any, movil3: any): string[] {
-  const moviles: string[] = [];
-  
-  // Add main movil if exists
-  if (movil && String(movil).trim() !== '') {
-    moviles.push(String(movil).trim());
-  }
-  
-  // Add intervening moviles if they exist and are different
-  const movilesIntervinientes = [movil1, movil2, movil3];
-  movilesIntervinientes.forEach(m => {
-    const movilStr = String(m || '').trim();
-    if (movilStr !== '' && !moviles.includes(movilStr)) {
-      moviles.push(movilStr);
-    }
-  });
-  
-  return moviles;
-}
-
-// Function to parse personal interviniente (can be number or names)
-function parsearPersonalInterviniente(valor: any): number | string {
-  if (!valor || valor === '') return 0;
-  
-  // If it's already a number
-  if (typeof valor === 'number') return valor;
-  
-  const valorStr = String(valor).trim();
-  
-  // Try to parse as number first
-  const numero = parseFloat(valorStr);
-  if (!isNaN(numero)) return numero;
-  
-  // If it contains names (commas, "y", etc.), return as string
-  if (valorStr.includes(',') || valorStr.toLowerCase().includes(' y ') || 
-      valorStr.toLowerCase().includes('bomberos') || valorStr.toLowerCase().includes('bombero')) {
-    return valorStr;
-  }
-  
-  // Try one more time to parse as number
-  const numeroIntento = parseFloat(valorStr.replace(/[^\d.,]/g, '').replace(',', '.'));
-  return !isNaN(numeroIntento) ? numeroIntento : valorStr;
-}
-
-// Main function to parse service data
+// Main parsing function using rows
 export function parsearDatosServicio(datos: DatosCSV): Servicio[] {
-  const serviciosParsedos: Servicio[] = [];
-  
-  // Process each data row
-  datos.rows.forEach((fila, indice) => {
+  return datos.rows.map((row, index) => {
     try {
-      const servicio: Servicio = {
+      const fechaPedido = parseDate(row[2]);
+      const { mes, anno } = extractMonthYear(fechaPedido);
+      
+      return {
         id: crypto.randomUUID(),
-        marcaTemporal: String(fila[0] || ''),
-        horaLlamado: parsearHora(fila[1]),
-        fechaPedido: parsearFecha(fila[2]),
-        numeroPartE: String(fila[3] || ''),
-        codigoServicio: String(fila[4] || ''),
-        ubicacionDireccion: String(fila[5] || ''),
-        localidad: String(fila[6] || '').length <= 86 ? String(fila[6] || '') : '',
-        tipoServicio: String(fila[7] || ''),
-        descripcion: String(fila[8] || ''),
-        movilesIntervinientes: parsearMovilesIntervinientes(fila[9], fila[10], fila[11], fila[12]),
-        personalInterviniente: parsearPersonalInterviniente(fila[13]),
-        datos: String(fila[14] || ''),
-        cantidadUnidadIntervinientes: parsearNumero(fila[15]),
-        seRealizoTraslado: parsearBooleano(fila[16]),
-        superficieAfectada: String(fila[17] || ''),
-        horarioLlamado: parsearHora(fila[18]) // Index 18 for horario de llamado
+        marcaTemporal: toStr(row[0]),
+        horaLlamado: toStr(row[1]),
+        fechaPedido,
+        mes,
+        anno,
+        numeroPartE: toStr(row[3]),
+        codigoServicio: toStr(row[4]),
+        ubicacionDireccion: toStr(row[5]),
+        localidad: toStr(row[6]).length <= 86 ? toStr(row[6]) : '',
+        tipoServicio: toStr(row[7]),
+        descripcion: toStr(row[8]),
+        movilesIntervinientes: parseMoviles(row[9], row[10], row[11], row[12]),
+        personalInterviniente: parsePersonal(row[13]),
+        datos: toStr(row[14]),
+        cantidadUnidadIntervinientes: toNum(row[15]),
+        seRealizoTraslado: toBool(row[16]),
+        superficieAfectada: toStr(row[17]),
+        horarioLlamado: toStr(row[18])
       };
-      
-      serviciosParsedos.push(servicio);
-      
     } catch (error) {
-      console.error(`Error processing row ${indice}:`, error);
-      console.error('Row data:', fila);
-      // Continue with next row on error
+      console.error(`Error processing row ${index}:`, error);
+      throw error; // Re-throw to maintain error handling behavior
     }
   });
-  
-  return serviciosParsedos;
 }
 
-// Alternative function that uses rawData instead of rows
+// Alternative function using rawData
 export function parsearDatosServicioDesdeRaw(datos: DatosCSV): Servicio[] {
-  const serviciosParsedos: Servicio[] = [];
-  
-  datos.rawData.forEach((item, indice) => {
+  return datos.rawData.map((item, index) => {
     try {
-      const servicio: Servicio = {
+      const fechaPedido = parseDate(item["fecha del pedido"]);
+      const { mes, anno } = extractMonthYear(fechaPedido);
+      
+      return {
         id: crypto.randomUUID(),
-        marcaTemporal: String(item["Marca temporal"] || ''),
-        horaLlamado: parsearHora(item["HORA DEL LLAMADO"]),
-        fechaPedido: parsearFecha(item["fecha del pedido"]),
-        numeroPartE: String(item["N° De Parte"] || ''),
-        codigoServicio: String(item["Código de Servicio"] || ''),
-        ubicacionDireccion: String(item["Ubicación/ Dirección"] || ''),
-        localidad: String(item["Localidad"] || ''),
-        tipoServicio: String(item["Tipo de Servicio"] || ''),
-        descripcion: String(item["Descripción "] || ''), // Note the space after "Descripción"
-        movilesIntervinientes: parsearMovilesIntervinientes(
-          item["Móvil"], 
-          item["Móvil interviniente"], 
-          item["Movil interveniente"], 
-          item["Movil interveniente"] // This might need adjustment based on actual headers
+        marcaTemporal: toStr(item["Marca temporal"]),
+        horaLlamado: toStr(item["HORA DEL LLAMADO"]),
+        fechaPedido,
+        mes,
+        anno,
+        numeroPartE: toStr(item["N° De Parte"]),
+        codigoServicio: toStr(item["Código de Servicio"]),
+        ubicacionDireccion: toStr(item["Ubicación/ Dirección"]),
+        localidad: toStr(item["Localidad"]),
+        tipoServicio: toStr(item["Tipo de Servicio"]),
+        descripcion: toStr(item["Descripción "]), // Note the space
+        movilesIntervinientes: parseMoviles(
+          item["Móvil"],
+          item["Móvil interviniente"],
+          item["Movil interveniente"]
         ),
-        personalInterviniente: parsearPersonalInterviniente(item["Personal Interviniente"]),
-        datos: String(item["datos"] || ''),
-        cantidadUnidadIntervinientes: parsearNumero(item["CANTIDAD DE UNIDAD INTERVENIENTES"]),
-        seRealizoTraslado: parsearBooleano(item["SE REALIZO EL TRASLADO"]),
-        superficieAfectada: String(item["superficie afectada"] || ''),
-        horarioLlamado: '' // This field might not exist in rawData, adjust as needed
+        personalInterviniente: parsePersonal(item["Personal Interviniente"]),
+        datos: toStr(item["datos"]),
+        cantidadUnidadIntervinientes: toNum(item["CANTIDAD DE UNIDAD INTERVENIENTES"]),
+        seRealizoTraslado: toBool(item["SE REALIZO EL TRASLADO"]),
+        superficieAfectada: toStr(item["superficie afectada"]),
+        horarioLlamado: '' // Not available in rawData
       };
-      
-      serviciosParsedos.push(servicio);
-      
     } catch (error) {
-      console.error(`Error processing raw data item ${indice}:`, error);
-      console.error('Raw data item:', item);
+      console.error(`Error processing raw data item ${index}:`, error);
+      throw error;
     }
   });
-  
-  return serviciosParsedos;
-}
-
-// Validation function for parsed data
-export function validarServicio(servicio: Servicio): { esValido: boolean; errores: string[] } {
-  const errores: string[] = [];
-  
-  if (!servicio.fechaPedido) {
-    errores.push('Fecha del pedido es inválida');
-  }
-
-  if (!servicio.codigoServicio.trim()) {
-    errores.push('Código de servicio es requerido');
-  }
-  
-  if (!servicio.tipoServicio.trim()) {
-    errores.push('Tipo de servicio es requerido');
-  }
-  
-  if (!servicio.numeroPartE.trim()) {
-    errores.push('Número de parte es requerido');
-  }
-  
-  if (!servicio.localidad.trim()) {
-    errores.push('Localidad es requerida');
-  }
-  
-  return {
-    esValido: errores.length === 0,
-    errores
-  };
-}
-
-// Utility function to test the parser with your sample data
-export function testParser() {
-  const sampleData = {
-    headers: [
-      "Marca temporal",
-      "HORA DEL LLAMADO", 
-      "fecha del pedido",
-      "N° De Parte",
-      "Código de Servicio",
-      "Ubicación/ Dirección",
-      "Localidad",
-      "Tipo de Servicio",
-      "Descripción ",
-      "Móvil",
-      "Móvil interviniente",
-      "Movil interveniente",
-      "Movil interveniente", 
-      "Personal Interviniente",
-      "datos",
-      "CANTIDAD DE UNIDAD INTERVENIENTES",
-      "SE REALIZO EL TRASLADO",
-      "superficie afectada",
-      ""
-    ],
-    rows: [
-      [
-        null,
-        0.17569444444444443,
-        45292,
-        "001/01/2024",
-        "2H",
-        "CENOBIO SOTO 688",
-        "VILLA DOLORES", 
-        "Rescate-Servicio de ambulancia",
-        "FEMENINA MAYOR DE EDAD QUE PRESENTARIA UNA CRISIS NERVIOSA. SE PROCEDE SU TRASLADO AL HOSPITAL REGIONAL DE VILLA DOLORES",
-        "MOVIL 96",
-        "4:13:00 a. m.",
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ]
-    ],
-    rawData: []
-  };
-  
-  const result = parsearDatosServicio(sampleData);
-  console.log('Parsed data:', result);
-  return result;
 }

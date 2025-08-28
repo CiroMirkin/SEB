@@ -1,21 +1,25 @@
 
 import { Card, CardContent } from "@/ui/card"
-import { parsearDatosServicio } from "@/utils/parseData"
-import { TablaServicios } from "./TablaDeServicios"
-
-interface FileData {
-  headers: string[]
-  rows: any[][]
-  rawData: any[]
-}
+import { parsearDatosServicioDesdeRaw, type DatosCSV } from "@/utils/parseData"
+import { groupServicesByYearAndMonth } from "@/utils/getByYear"
+import { analizarServiciosPorMes } from "@/utils/numerosBasicos"
 
 interface StatisticsDashboardProps {
-  data: FileData | null
+  data: DatosCSV | null
 }
 
 export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
   console.log(data)
+  const wholeData = parsearDatosServicioDesdeRaw(data ? data : {
+  headers: [],
+  rows: [],
+  rawData: [],
+})
+  const groupData = groupServicesByYearAndMonth(wholeData)
 
+  console.log(groupData)
+  console.log(analizarServiciosPorMes(groupData["2024"]))
+  console.log(analizarServiciosPorMes(groupData["2025"]))
 
   if (!data) {
     return (
@@ -26,14 +30,9 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       </Card>
     )
   }
-  console.log(data)
 
   return (
   <div className="space-y-6">
-
-    <TablaServicios servicios={parsearDatosServicio(data)} />
-
-
     </div>
   )
 }
