@@ -1,4 +1,4 @@
-import type { ServicioEmergencia } from "@/utils/parseData";
+import type { Servicio } from "@/utils/parseData";
 import {
   Table,
   TableBody,
@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/ui/table";
 
-export function TablaServicios({ servicios }: { servicios: ServicioEmergencia[] }) {
+export function TablaServicios({ servicios }: { servicios: Servicio[] }) {
   return (
     <Table>
       <TableCaption>Lista de servicios de ambulancia recientes.</TableCaption>

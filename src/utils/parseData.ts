@@ -1,5 +1,5 @@
 // Interface for defining the parsed object structure
-export interface ServicioEmergencia {
+export interface Servicio {
   id: string;
   marcaTemporal: string;
   horaLlamado: string;
@@ -212,13 +212,13 @@ function parsearPersonalInterviniente(valor: any): number | string {
 }
 
 // Main function to parse service data
-export function parsearDatosServicio(datos: DatosCSV): ServicioEmergencia[] {
-  const serviciosParsedos: ServicioEmergencia[] = [];
+export function parsearDatosServicio(datos: DatosCSV): Servicio[] {
+  const serviciosParsedos: Servicio[] = [];
   
   // Process each data row
   datos.rows.forEach((fila, indice) => {
     try {
-      const servicio: ServicioEmergencia = {
+      const servicio: Servicio = {
         id: crypto.randomUUID(),
         marcaTemporal: String(fila[0] || ''),
         horaLlamado: parsearHora(fila[1]),
@@ -251,12 +251,12 @@ export function parsearDatosServicio(datos: DatosCSV): ServicioEmergencia[] {
 }
 
 // Alternative function that uses rawData instead of rows
-export function parsearDatosServicioDesdeRaw(datos: DatosCSV): ServicioEmergencia[] {
-  const serviciosParsedos: ServicioEmergencia[] = [];
+export function parsearDatosServicioDesdeRaw(datos: DatosCSV): Servicio[] {
+  const serviciosParsedos: Servicio[] = [];
   
   datos.rawData.forEach((item, indice) => {
     try {
-      const servicio: ServicioEmergencia = {
+      const servicio: Servicio = {
         id: crypto.randomUUID(),
         marcaTemporal: String(item["Marca temporal"] || ''),
         horaLlamado: parsearHora(item["HORA DEL LLAMADO"]),
@@ -293,7 +293,7 @@ export function parsearDatosServicioDesdeRaw(datos: DatosCSV): ServicioEmergenci
 }
 
 // Validation function for parsed data
-export function validarServicio(servicio: ServicioEmergencia): { esValido: boolean; errores: string[] } {
+export function validarServicio(servicio: Servicio): { esValido: boolean; errores: string[] } {
   const errores: string[] = [];
   
   if (!servicio.fechaPedido) {
