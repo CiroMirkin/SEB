@@ -27,8 +27,6 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
     )
   }
   console.log(data)
-  console.log(parsearDatosServicio(data))
-  console.log(parsearDatosServicio(data).length)
 
   return (
   <div className="space-y-6">

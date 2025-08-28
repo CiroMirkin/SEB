@@ -17,7 +17,8 @@ export function TablaServicios({ servicios }: { servicios: ServicioEmergencia[] 
       <TableHeader>
         <TableRow>
           <TableHead className="w-[100px]">N° Parte</TableHead>
-          <TableHead>Fecha y Hora</TableHead>
+          <TableHead>Fecha</TableHead>
+          <TableHead>Hora</TableHead>
           <TableHead>Localidad</TableHead>
           <TableHead>Tipo de Servicio</TableHead>
           <TableHead>Móvil</TableHead>
@@ -28,11 +29,14 @@ export function TablaServicios({ servicios }: { servicios: ServicioEmergencia[] 
           <TableRow key={servicio.id}>
             <TableCell className="font-medium">{servicio.numeroPartE}</TableCell>
             <TableCell>
-              {!!servicio.fechaPedido && new Date(servicio.fechaPedido).toLocaleDateString()} {servicio.horaLlamado}
+              {servicio.fechaPedido && new Date(servicio.fechaPedido).toDateString()}
+            </TableCell>
+             <TableCell>
+              {servicio.horaLlamado}
             </TableCell>
             <TableCell>{servicio.localidad}</TableCell>
             <TableCell>{servicio.tipoServicio}</TableCell>
-            <TableCell>{servicio.movil}</TableCell>
+            <TableCell>{servicio.movilesIntervinientes.join(' - ')}</TableCell>
           </TableRow>
         ))}
       </TableBody>

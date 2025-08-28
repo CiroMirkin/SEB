@@ -1,6 +1,6 @@
-// Interfaz para definir la estructura del objeto parseado
+// Interface for defining the parsed object structure
 export interface ServicioEmergencia {
-  id: string
+  id: string;
   marcaTemporal: string;
   horaLlamado: string;
   fechaPedido: Date | null;
@@ -10,11 +10,8 @@ export interface ServicioEmergencia {
   localidad: string;
   tipoServicio: string;
   descripcion: string;
-  movil: string;
-  movilInterviniente1: string;
-  movilInterviniente2: string;
-  movilInterviniente3: string;
-  personalInterviniente: number; // Cambiado a number según los datos reales
+  movilesIntervinientes: string[]; // Fusión de movil + movilInterviniente1-3
+  personalInterviniente: number | string; // Can be number or names separated by commas
   datos: string;
   cantidadUnidadIntervinientes: number | null;
   seRealizoTraslado: boolean | null;
@@ -22,26 +19,59 @@ export interface ServicioEmergencia {
   horarioLlamado: string;
 }
 
-// Interfaz para los datos de entrada
+// Interface for input data
 interface DatosCSV {
   headers: string[];
   rows: any[][];
   rawData: any[];
 }
 
-// Función para normalizar el año en la fecha
+// Function to convert Excel serial date to Date object
+function convertirFechaExcel(serial: number): Date | null {
+  if (!serial || typeof serial !== 'number') return null;
+  
+  try {
+    // Excel epoch starts at January 1, 1900
+    const excelEpoch = new Date(1899, 11, 30); // December 30, 1899
+    const fecha = new Date(excelEpoch.getTime() + serial * 86400000);
+    return fecha;
+  } catch (error) {
+    console.warn(`Error converting Excel date: ${serial}`, error);
+    return null;
+  }
+}
+
+// Function to convert Excel time serial to time string
+function convertirHoraExcel(serial: number): string {
+  if (!serial || typeof serial !== 'number') return '';
+  
+  try {
+    // Convert serial to total seconds
+    const totalSeconds = Math.round(serial * 86400);
+    
+    // Calculate hours, minutes, seconds
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    
+    // Format as HH:MM:SS
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  } catch (error) {
+    console.warn(`Error converting Excel time: ${serial}`, error);
+    return '';
+  }
+}
+
+// Function to normalize year in date
 function normalizarAno(fechaStr: string): string {
   if (!fechaStr) return fechaStr;
   
-  // Buscar patrones de año de 2 dígitos y convertirlos a 4 dígitos
-  // Maneja tanto DD/MM/YY como D/M/YY
+  // Handle year patterns of 2 digits and convert to 4 digits
   const patron2Digitos = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
   const patron4Digitos = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
   
   if (patron2Digitos.test(fechaStr) && !patron4Digitos.test(fechaStr)) {
     return fechaStr.replace(patron2Digitos, (match, dia, mes, ano) => {
-      // Convertir año de 2 dígitos a 4 dígitos
-      // Asumimos que años 00-30 son 2000-2030, y 31-99 son 1931-1999
       const anoNum = parseInt(ano);
       const anoCompleto = anoNum <= 30 ? `20${ano.padStart(2, '0')}` : `19${ano.padStart(2, '0')}`;
       return `${dia}/${mes}/${anoCompleto}`;
@@ -51,131 +81,226 @@ function normalizarAno(fechaStr: string): string {
   return fechaStr;
 }
 
-// Función para parsear fecha considerando diferentes formatos
-export function parsearFecha(fechaStr: string): Date | null {
-  if (!fechaStr || fechaStr.trim() === '') return null;
+// Function to parse date considering different formats
+export function parsearFecha(fechaInput: any): Date | null {
+  if (!fechaInput) return null;
   
-  try {
-    const fechaNormalizada = normalizarAno(fechaStr.trim());
-    
-    // Intentar diferentes formatos de fecha comunes
-    const formatosPatrones = [
-      // DD/MM/YYYY o D/MM/YYYY
-      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
-      // Formato con año ya completo
-      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
-    ];
-    
-    // Intentar formato DD/MM/YYYY o D/M/YYYY
-    const match = fechaNormalizada.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      const [, dia, mes, ano] = match;
-      const fecha = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
-      
-      // Verificar si la fecha es válida
-      if (fecha.getFullYear() == parseInt(ano) && 
-          fecha.getMonth() == parseInt(mes) - 1 && 
-          fecha.getDate() == parseInt(dia)) {
-        return fecha;
-      }
-    }
-    
-    // Si no funciona, intentar parsear directamente
-    const fecha = new Date(fechaNormalizada);
-    return isNaN(fecha.getTime()) ? null : fecha;
-    
-  } catch (error) {
-    console.warn(`Error al parsear fecha: ${fechaStr}`, error);
-    return null;
+  // If it's a number (Excel serial date)
+  if (typeof fechaInput === 'number') {
+    return convertirFechaExcel(fechaInput);
   }
+  
+  // If it's a string
+  if (typeof fechaInput === 'string') {
+    const fechaStr = fechaInput.trim();
+    if (fechaStr === '') return null;
+    
+    try {
+      const fechaNormalizada = normalizarAno(fechaStr);
+      
+      const match = fechaNormalizada.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (match) {
+        const [, dia, mes, ano] = match;
+        const fecha = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia));
+        
+        if (fecha.getFullYear() == parseInt(ano) && 
+            fecha.getMonth() == parseInt(mes) - 1 && 
+            fecha.getDate() == parseInt(dia)) {
+          return fecha;
+        }
+      }
+      
+      const fecha = new Date(fechaNormalizada);
+      return isNaN(fecha.getTime()) ? null : fecha;
+      
+    } catch (error) {
+      console.warn(`Error parsing date: ${fechaInput}`, error);
+      return null;
+    }
+  }
+  
+  return null;
 }
 
-// Función para convertir string a booleano
-function parsearBooleano(valor: string): boolean | null {
-  if (!valor || valor.trim() === '') return null;
+// Function to parse time input
+function parsearHora(horaInput: any): string {
+  if (!horaInput) return '';
   
-  const valorLower = valor.toLowerCase().trim();
+  // If it's a number (Excel serial time)
+  if (typeof horaInput === 'number') {
+    return convertirHoraExcel(horaInput);
+  }
   
-  if (['sí', 'si', 'yes', 'true', '1', 'verdadero'].includes(valorLower)) {
+  // If it's already a string
+  if (typeof horaInput === 'string') {
+    return horaInput.trim();
+  }
+  
+  return '';
+}
+
+// Function to convert string to boolean
+function parsearBooleano(valor: any): boolean | null {
+  if (!valor || valor === '') return null;
+  
+  const valorStr = String(valor).toLowerCase().trim();
+  
+  if (['sí', 'si', 'yes', 'true', '1', 'verdadero'].includes(valorStr)) {
     return true;
   }
   
-  if (['no', 'false', '0', 'falso'].includes(valorLower)) {
+  if (['no', 'false', '0', 'falso'].includes(valorStr)) {
     return false;
   }
   
   return null;
 }
 
-// Función para convertir string a número
-function parsearNumero(valor: string): number | null {
-  if (!valor || valor.trim() === '') return null;
+// Function to convert string to number
+function parsearNumero(valor: any): number | null {
+  if (!valor || valor === '') return null;
   
-  const numero = parseFloat(valor.replace(',', '.'));
+  if (typeof valor === 'number') return valor;
+  
+  const numero = parseFloat(String(valor).replace(',', '.'));
   return isNaN(numero) ? null : numero;
 }
 
-// Función principal para parsear los datos
-export function parsearDatosServicio(datos: DatosCSV): ServicioEmergencia[] {
-  const serviciosParsedos: ServicioEmergencia[] = [];
+// Function to parse moviles intervinientes into array
+function parsearMovilesIntervinientes(movil: any, movil1: any, movil2: any, movil3: any): string[] {
+  const moviles: string[] = [];
   
-  // Mapear los índices de las columnas basándose en los headers
-  const headerMap: { [key: string]: number } = {};
-  datos.headers.forEach((header, index) => {
-    if (header && header.trim() !== '') {
-      headerMap[header.toLowerCase().trim()] = index;
+  // Add main movil if exists
+  if (movil && String(movil).trim() !== '') {
+    moviles.push(String(movil).trim());
+  }
+  
+  // Add intervening moviles if they exist and are different
+  const movilesIntervinientes = [movil1, movil2, movil3];
+  movilesIntervinientes.forEach(m => {
+    const movilStr = String(m || '').trim();
+    if (movilStr !== '' && !moviles.includes(movilStr)) {
+      moviles.push(movilStr);
     }
   });
   
-  // Procesar cada fila de datos
+  return moviles;
+}
+
+// Function to parse personal interviniente (can be number or names)
+function parsearPersonalInterviniente(valor: any): number | string {
+  if (!valor || valor === '') return 0;
+  
+  // If it's already a number
+  if (typeof valor === 'number') return valor;
+  
+  const valorStr = String(valor).trim();
+  
+  // Try to parse as number first
+  const numero = parseFloat(valorStr);
+  if (!isNaN(numero)) return numero;
+  
+  // If it contains names (commas, "y", etc.), return as string
+  if (valorStr.includes(',') || valorStr.toLowerCase().includes(' y ') || 
+      valorStr.toLowerCase().includes('bomberos') || valorStr.toLowerCase().includes('bombero')) {
+    return valorStr;
+  }
+  
+  // Try one more time to parse as number
+  const numeroIntento = parseFloat(valorStr.replace(/[^\d.,]/g, '').replace(',', '.'));
+  return !isNaN(numeroIntento) ? numeroIntento : valorStr;
+}
+
+// Main function to parse service data
+export function parsearDatosServicio(datos: DatosCSV): ServicioEmergencia[] {
+  const serviciosParsedos: ServicioEmergencia[] = [];
+  
+  // Process each data row
   datos.rows.forEach((fila, indice) => {
     try {
-      // Basándose en la estructura real de los datos proporcionados
       const servicio: ServicioEmergencia = {
         id: crypto.randomUUID(),
-        marcaTemporal: fila[0] || '', // Índice 0: Marca temporal
-        horaLlamado: fila[1] || '',   // Índice 1: HORA DEL LLAMADO
-        fechaPedido: parsearFecha(fila[2] || ''), // Índice 2: fecha del pedido
-        numeroPartE: fila[3] || '',   // Índice 3: N° De Parte
-        codigoServicio: fila[4] || '', // Índice 4: Código de Servicio
-        ubicacionDireccion: fila[5] || '', // Índice 5: Ubicación/ Dirección
-        localidad: fila[6].length <= 86 ? fila[6] : '',     // Índice 6: Localidad
-        tipoServicio: fila[7] || '',  // Índice 7: Tipo de Servicio
-        descripcion: fila[8] || '',   // Índice 8: Descripción
-        movil: fila[9] || '',         // Índice 9: Móvil
-        movilInterviniente1: fila[10] || '', // Índice 10: Móvil interviniente
-        movilInterviniente2: fila[11] || '', // Índice 11: Movil interveniente
-        movilInterviniente3: fila[12] || '', // Índice 12: Movil interveniente
-        personalInterviniente: parsearNumero(fila[13]) || 0, // Índice 13: Personal Interviniente (parece ser numérico)
-        datos: fila[14] || '',        // Índice 14: datos (ej: "OTRO", "ACCIDENTE VEHICULAR")
-        cantidadUnidadIntervinientes: parsearNumero(fila[15]) || null, // Índice 15: CANTIDAD DE UNIDAD INTERVENIENTES
-        seRealizoTraslado: parsearBooleano(fila[16]) || null, // Índice 16: SE REALIZO EL TRASLADO
-        superficieAfectada: fila[17] || '', // Índice 17: superficie afectada
-        horarioLlamado: fila[19] || ''  // Índice 19: horario de llamado
+        marcaTemporal: String(fila[0] || ''),
+        horaLlamado: parsearHora(fila[1]),
+        fechaPedido: parsearFecha(fila[2]),
+        numeroPartE: String(fila[3] || ''),
+        codigoServicio: String(fila[4] || ''),
+        ubicacionDireccion: String(fila[5] || ''),
+        localidad: String(fila[6] || '').length <= 86 ? String(fila[6] || '') : '',
+        tipoServicio: String(fila[7] || ''),
+        descripcion: String(fila[8] || ''),
+        movilesIntervinientes: parsearMovilesIntervinientes(fila[9], fila[10], fila[11], fila[12]),
+        personalInterviniente: parsearPersonalInterviniente(fila[13]),
+        datos: String(fila[14] || ''),
+        cantidadUnidadIntervinientes: parsearNumero(fila[15]),
+        seRealizoTraslado: parsearBooleano(fila[16]),
+        superficieAfectada: String(fila[17] || ''),
+        horarioLlamado: parsearHora(fila[18]) // Index 18 for horario de llamado
       };
       
       serviciosParsedos.push(servicio);
       
     } catch (error) {
-      console.error(`Error procesando fila ${indice}:`, error);
-      // Continuar con la siguiente fila en caso de error
+      console.error(`Error processing row ${indice}:`, error);
+      console.error('Row data:', fila);
+      // Continue with next row on error
     }
   });
   
   return serviciosParsedos;
 }
 
-// Función auxiliar para validar los datos parseados
+// Alternative function that uses rawData instead of rows
+export function parsearDatosServicioDesdeRaw(datos: DatosCSV): ServicioEmergencia[] {
+  const serviciosParsedos: ServicioEmergencia[] = [];
+  
+  datos.rawData.forEach((item, indice) => {
+    try {
+      const servicio: ServicioEmergencia = {
+        id: crypto.randomUUID(),
+        marcaTemporal: String(item["Marca temporal"] || ''),
+        horaLlamado: parsearHora(item["HORA DEL LLAMADO"]),
+        fechaPedido: parsearFecha(item["fecha del pedido"]),
+        numeroPartE: String(item["N° De Parte"] || ''),
+        codigoServicio: String(item["Código de Servicio"] || ''),
+        ubicacionDireccion: String(item["Ubicación/ Dirección"] || ''),
+        localidad: String(item["Localidad"] || ''),
+        tipoServicio: String(item["Tipo de Servicio"] || ''),
+        descripcion: String(item["Descripción "] || ''), // Note the space after "Descripción"
+        movilesIntervinientes: parsearMovilesIntervinientes(
+          item["Móvil"], 
+          item["Móvil interviniente"], 
+          item["Movil interveniente"], 
+          item["Movil interveniente"] // This might need adjustment based on actual headers
+        ),
+        personalInterviniente: parsearPersonalInterviniente(item["Personal Interviniente"]),
+        datos: String(item["datos"] || ''),
+        cantidadUnidadIntervinientes: parsearNumero(item["CANTIDAD DE UNIDAD INTERVENIENTES"]),
+        seRealizoTraslado: parsearBooleano(item["SE REALIZO EL TRASLADO"]),
+        superficieAfectada: String(item["superficie afectada"] || ''),
+        horarioLlamado: '' // This field might not exist in rawData, adjust as needed
+      };
+      
+      serviciosParsedos.push(servicio);
+      
+    } catch (error) {
+      console.error(`Error processing raw data item ${indice}:`, error);
+      console.error('Raw data item:', item);
+    }
+  });
+  
+  return serviciosParsedos;
+}
+
+// Validation function for parsed data
 export function validarServicio(servicio: ServicioEmergencia): { esValido: boolean; errores: string[] } {
   const errores: string[] = [];
   
   if (!servicio.fechaPedido) {
     errores.push('Fecha del pedido es inválida');
-    console.error(servicio.fechaPedido)
-}
+  }
 
-if (!servicio.codigoServicio.trim()) {
-      console.error(servicio.codigoServicio)
+  if (!servicio.codigoServicio.trim()) {
     errores.push('Código de servicio es requerido');
   }
   
@@ -197,3 +322,57 @@ if (!servicio.codigoServicio.trim()) {
   };
 }
 
+// Utility function to test the parser with your sample data
+export function testParser() {
+  const sampleData = {
+    headers: [
+      "Marca temporal",
+      "HORA DEL LLAMADO", 
+      "fecha del pedido",
+      "N° De Parte",
+      "Código de Servicio",
+      "Ubicación/ Dirección",
+      "Localidad",
+      "Tipo de Servicio",
+      "Descripción ",
+      "Móvil",
+      "Móvil interviniente",
+      "Movil interveniente",
+      "Movil interveniente", 
+      "Personal Interviniente",
+      "datos",
+      "CANTIDAD DE UNIDAD INTERVENIENTES",
+      "SE REALIZO EL TRASLADO",
+      "superficie afectada",
+      ""
+    ],
+    rows: [
+      [
+        null,
+        0.17569444444444443,
+        45292,
+        "001/01/2024",
+        "2H",
+        "CENOBIO SOTO 688",
+        "VILLA DOLORES", 
+        "Rescate-Servicio de ambulancia",
+        "FEMENINA MAYOR DE EDAD QUE PRESENTARIA UNA CRISIS NERVIOSA. SE PROCEDE SU TRASLADO AL HOSPITAL REGIONAL DE VILLA DOLORES",
+        "MOVIL 96",
+        "4:13:00 a. m.",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    ],
+    rawData: []
+  };
+  
+  const result = parsearDatosServicio(sampleData);
+  console.log('Parsed data:', result);
+  return result;
+}
