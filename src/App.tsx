@@ -3,11 +3,11 @@ import { StatisticsDashboard } from "@/components/StatisticsDashboard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/ui/alert"
-import { Badge } from "@/ui/badge"
-import { BarChart3, Upload, FileText, CheckCircle, AlertTriangle, Loader2, File } from "lucide-react"
+import { Upload, FileText, CheckCircle, AlertTriangle, Loader2, File } from "lucide-react"
 import type { DatosCSV } from "./utils/parseData"
 import useExcelFile from "./components/useExcelFile"
 import { Button } from "./ui/button"
+import { Header } from "./components/Header"
 
 export default function App() {
   const {
@@ -47,39 +47,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <BarChart3 className="h-8 w-8 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <h1 className="text-xl font-semibold text-gray-900">
-                  Sistema de Estadísticas de Bomberos
-                </h1>
-                <p className="text-sm text-gray-500">
-                  Centralización y análisis de datos de siniestros
-                </p>
-              </div>
-            </div>
-            
-            {/* Indicador de estado del archivo */}
-            {hasFile && (
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <File className="h-3 w-3" />
-                  {selectedFile?.name}
-                </Badge>
-                <Badge variant="secondary">
-                  {sheetsCount} hoja{sheetsCount !== 1 ? 's' : ''} • {totalRows} filas
-                </Badge>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header/>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
