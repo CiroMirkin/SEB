@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/ui/table";
-import type { Servicio } from "./service";
+import type { Servicio } from "../model/service";
 
 export function TablaServicios({ servicios }: { servicios: Servicio[] }) {
   return (

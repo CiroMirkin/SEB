@@ -1,6 +1,6 @@
 // Interface for defining the parsed object structure
 
-import { nullDateValue, type NullDate, type Servicio } from "@/components/service";
+import { nullDateValue, type NullDate, type Servicio } from "@/model/service";
 
 // Interface for input data
 export interface DatosCSV {

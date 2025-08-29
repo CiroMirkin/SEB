@@ -1,4 +1,4 @@
-import { type Servicio, nullDateValue } from "@/components/service";
+import { type Servicio, nullDateValue } from "@/model/service";
 
 // Alternative function that returns a flatter structure: {"año": Servicio[]}
 export function groupServicesByYear(servicios: Servicio[]): Record<string, Servicio[]> {
