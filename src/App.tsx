@@ -1,5 +1,4 @@
 import { useMemo } from "react"
-import { FileUploader } from "@/components/FileUploader"
 import { StatisticsDashboard } from "@/components/StatisticsDashboard"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui/card"
@@ -8,6 +7,7 @@ import { Badge } from "@/ui/badge"
 import { BarChart3, Upload, FileText, CheckCircle, AlertTriangle, Loader2, File } from "lucide-react"
 import type { DatosCSV } from "./utils/parseData"
 import useExcelFile from "./components/useExcelFile"
+import { Button } from "./ui/button"
 
 export default function App() {
   const {
@@ -44,12 +44,6 @@ export default function App() {
       rawData: mainSheet.data
     } as DatosCSV
   }, [hasFile, sheets])
-
-  const handleDataLoaded = (data: DatosCSV) => {
-    // Esta función ahora es manejada por el hook
-    // pero mantenemos la interfaz para compatibilidad
-    console.log('Data loaded via hook:', data)
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -112,7 +106,7 @@ export default function App() {
                 Cargar Archivo de Datos
               </h2>
               <p className="text-lg text-gray-600">
-                Sube tu archivo CSV o Excel para generar estadísticas detalladas
+                Sube tu archivo Excel o CSV para generar estadísticas detalladas
               </p>
             </div>
 
@@ -137,58 +131,26 @@ export default function App() {
 
             {/* Información del archivo cargado */}
             {hasFile && !isLoading && !error && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+              <div className="flex flex-wrap justify-between items-center gap-4 bg-card rounded-xl border p-6 shadow-sm">
+                <div className="flex flex-col items-start gap-1.5 px-6">
+                  <h3 className="w-full flex items-center gap-2 leading-none font-bold text-lg">
                     <CheckCircle className="h-5 w-5 text-green-500" />
                     Archivo cargado correctamente
-                  </CardTitle>
-                  <CardDescription>
-                    {selectedFile?.name} • {selectedFile ? (selectedFile.size / 1024 / 1024).toFixed(2) : '0'} MB
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Hojas encontradas:</span>
-                      <Badge variant="outline">{sheetsCount}</Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Total de filas:</span>
-                      <Badge variant="outline">{totalRows}</Badge>
-                    </div>
-                    
-                    {/* Lista de hojas */}
-                    {sheets.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-sm text-gray-600">Hojas disponibles:</span>
-                        <div className="grid gap-2">
-                          {sheets.map((sheet) => (
-                            <div 
-                              key={sheet.sheetName} 
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded"
-                            >
-                              <span className="text-sm font-medium">{sheet.sheetName}</span>
-                              <Badge variant="secondary">
-                                {sheet.rowCount} filas
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-3">
-                      <button
+                  </h3>
+                  <p className="block text-muted-foreground text-base">
+                    {selectedFile?.name}  
+                  </p>
+                </div>
+                <div className="grid items-center">
+                  <Button
                         onClick={resetFile}
-                        className="px-4 py-2 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                        variant='destructive'
+                        className="font-bold"
                       >
                         Eliminar archivo
-                      </button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                      </Button>
+                </div>
+              </div>
             )}
 
             {/* Input de archivo personalizado */}
@@ -216,14 +178,6 @@ export default function App() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* Mantener el FileUploader original como alternativa */}
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                O usa el cargador avanzado:
-              </h3>
-              <FileUploader onDataLoaded={handleDataLoaded} />
-            </div>
           </TabsContent>
 
           <TabsContent value="statistics" className="space-y-6">
