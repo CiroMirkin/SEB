@@ -1,7 +1,7 @@
 
 import { Card, CardContent } from "@/ui/card"
 import { parsearDatosServicio, type DatosCSV } from "@/utils/parseData"
-import { groupServicesByYear } from "@/utils/groupServicesByYear"
+import { groupServicesByYear } from "@/domain/groupServicesByYear"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
