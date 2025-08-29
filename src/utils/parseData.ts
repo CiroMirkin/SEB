@@ -51,7 +51,7 @@ const extractMonthYear = (date: string | NullDate) => {
   if(month.length == 1) month = `0${month}`
 
   return ({
-    mes: date ? month + 1 : nullDateValue,
+    mes: date ? month : nullDateValue,
     anno: date ? year : nullDateValue
   })
 }
