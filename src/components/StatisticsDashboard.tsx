@@ -2,6 +2,8 @@
 import { Card, CardContent } from "@/ui/card"
 import { parsearDatosServicio, type DatosCSV } from "@/utils/parseData"
 import { groupServicesByYear } from "@/domain/groupServicesByYear"
+import { getServicesByMonth } from "@/domain/getServicesByMonth"
+import type { Sinister } from "@/model/siniester"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -14,8 +16,20 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
   rows: [],
   rawData: [],
 })
-  const groupData = groupServicesByYear(wholeData)
-  console.log(groupData)
+  const servicesByYear = groupServicesByYear(wholeData)
+
+  const siniestros: Sinister[] = []
+  Object.entries(servicesByYear).forEach(([year, services]) => {
+    const service = {
+      year,
+      servicesByMonth: Array(12).fill([])
+    }
+    for (let month = 0; month < 12; month++) {
+      service.servicesByMonth[month] = getServicesByMonth(services, month)
+    }
+    siniestros.push(service)
+  })
+
 
   if (!data) {
     return (
