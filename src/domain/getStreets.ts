@@ -1,25 +1,53 @@
 import type { Servicio } from "@/model/service"
 
-export function getStreets(servicios: Servicio[]): string[] {
-  const callesSet = new Set<string>()
+export function getStreets(servicios: Servicio[]): { [calle: string]: Servicio[] } {
+  const callesMap = new Map<string, Servicio[]>()
   
   servicios.forEach(servicio => {
     if (servicio.ubicacionDireccion) {
       let direccion = servicio.ubicacionDireccion.trim()
       
       // Detectar y procesar intersecciones
-      if (direccion.match(/ y | - | – /i)) {
-        const partes = direccion.split(/ y | - | – /i)
-        direccion = partes.map(parte => limpiarCalle(parte.trim())).filter(parte => parte).join(' Y ')
-      } else {
-        direccion = limpiarCalle(direccion)
+      if (direccion.match(/ y | - | - /i)) {
+        const partes = direccion.split(/ y | - | - /i)
+        const callesLimpias = partes.map(parte => limpiarCalle(parte.trim())).filter(parte => parte)
+        
+        callesLimpias.forEach(calle => {
+          if (!callesMap.has(calle)) {
+            callesMap.set(calle, [])
+          }
+          callesMap.get(calle)!.push(servicio)
+        })
+        
+        if (callesLimpias.length > 0) {
+          const interseccion = callesLimpias.join(' Y ')
+          if (!callesMap.has(interseccion)) {
+            callesMap.set(interseccion, [])
+          }
+          callesMap.get(interseccion)!.push(servicio)
+        }
+      } 
+      else {
+        const calleLimpia = limpiarCalle(direccion)
+        if (calleLimpia) {
+          if (!callesMap.has(calleLimpia)) {
+            callesMap.set(calleLimpia, [])
+          }
+          callesMap.get(calleLimpia)!.push(servicio)
+        }
       }
-      
-      if (direccion) callesSet.add(direccion)
     }
   })
   
-  return Array.from(callesSet).sort()
+  // Convertir Map a objeto y ordenar las claves
+  const resultado: { [calle: string]: Servicio[] } = {}
+  const callesOrdenadas = Array.from(callesMap.keys()).sort()
+  
+  callesOrdenadas.forEach(calle => {
+    resultado[calle] = callesMap.get(calle)!
+  })
+  
+  return resultado
 }
 
 function limpiarCalle(calle: string): string {
@@ -27,11 +55,10 @@ function limpiarCalle(calle: string): string {
     .replace(/(N°\s*\d+|\b\d+\b)/g, '')  // Solo números, no elimina letras con números
     .replace(/(ref:|ref)\s*.+/i, '')
     .replace(/(detras|frente|esquina|altura|entre)\s*.+/i, '')
-    .replace(/[,\-–]\s*$/i, '')
+    .replace(/[,\--]\s*$/i, '')
     .trim()
     .replace(/\s+/g, ' ')
 }
-
 /** 
  * Función para calcular similitud de trigramas (0 a 1)
  * @example 
