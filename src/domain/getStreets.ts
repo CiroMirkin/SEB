@@ -52,7 +52,8 @@ export function getStreets(servicios: Servicio[]): { [calle: string]: Servicio[]
 
 function limpiarCalle(calle: string): string {
   return calle
-    .replace(/(N°\s*\d+|\b\d+\b)/g, '')  // Solo números, no elimina letras con números
+    .replace(/N°\s*\d+/g, '')  // Elimina números de casa (N° 123)
+    .replace(/(?<!^\s*)\b\d+\b/g, '')  // Elimina números que NO estén al inicio
     .replace(/(ref:|ref)\s*.+/i, '')
     .replace(/(detras|frente|esquina|altura|entre)\s*.+/i, '')
     .replace(/[,\--]\s*$/i, '')
