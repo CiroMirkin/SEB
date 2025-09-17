@@ -1,177 +1,241 @@
-import type { Statistics } from "@/components/types"
 import jsPDF from "jspdf"
 
-export const exportToPDF = async (statistics: Statistics) => {
-    if (!statistics) return
+// Interfaz para los filtros aplicados
+interface PDFFilters {
+  year?: string
+  month?: string
+  location?: string
+}
 
-    const pdf = new jsPDF('p', 'mm', 'a4')
-    const pageWidth = pdf.internal.pageSize.getWidth()
-    const pageHeight = pdf.internal.pageSize.getHeight()
-    let yPosition = 20
+// Interfaz para los datos estadísticos
+interface Statistics {
+  monthlyData: Array<{
+    month: string
+    incendios: number
+    accidentes: number
+    traslados: number
+  }>
+  locationData: Array<{
+    location: string
+    count: number
+  }>
+  serviceTypeData: Array<{
+    type: string
+    count: number
+  }>
+  codigoServicioData: Array<{
+    codigo: string
+    count: number
+  }>
+  trends: {
+    fires: { trend: string; change: number }
+    accidents: { trend: string; change: number }
+  }
+}
 
-    // Función para agregar encabezado
-    const addHeader = () => {
-      pdf.setFontSize(20)
-      pdf.setTextColor(33, 37, 41)
-      pdf.text('Estadísticas de Bomberos', pageWidth / 2, yPosition, { align: 'center' })
-      
-      if (selectedYear !== "all" || selectedMonth !== "all" || selectedLocation !== "all") {
-        pdf.setFontSize(12)
-        pdf.setTextColor(107, 114, 128)
-        let filterText = "Filtros: "
-        if (selectedYear !== "all") filterText += `Año: ${selectedYear} `
-        if (selectedMonth !== "all") filterText += `Mes: ${selectedMonth} `
-        if (selectedLocation !== "all") filterText += `Localidad: ${selectedLocation}`
-        pdf.text(filterText, pageWidth / 2, yPosition + 8, { align: 'center' })
-        yPosition += 16
-      } else {
-        yPosition += 8
+// Configuración del PDF
+interface PDFConfig {
+  pageWidth: number
+  pageHeight: number
+  margin: number
+  colors: {
+    primary: [number, number, number]
+    secondary: [number, number, number]
+    text: [number, number, number]
+    background: [number, number, number]
+  }
+}
+
+class PDFGenerator {
+  private pdf: jsPDF
+  private config: PDFConfig
+  private yPosition: number = 20
+
+  constructor() {
+    this.pdf = new jsPDF('p', 'mm', 'a4')
+    this.config = {
+      pageWidth: this.pdf.internal.pageSize.getWidth(),
+      pageHeight: this.pdf.internal.pageSize.getHeight(),
+      margin: 20,
+      colors: {
+        primary: [59, 130, 246],
+        secondary: [107, 114, 128],
+        text: [31, 41, 55],
+        background: [255, 255, 255]
       }
-      
-      pdf.setFontSize(10)
-      pdf.setTextColor(107, 114, 128)
-      pdf.text(`Generado: ${new Date().toLocaleDateString('es-AR')}`, pageWidth / 2, yPosition + 5, { align: 'center' })
-      yPosition += 15
     }
+  }
 
-    // Función para agregar título de sección
-    const addSectionTitle = (title: string) => {
-      pdf.setFontSize(14)
-      pdf.setTextColor(31, 41, 55)
-      pdf.text(title, 20, yPosition)
-      yPosition += 8
+  private addHeader(filters?: PDFFilters): void {
+    this.pdf.setFontSize(20)
+    this.pdf.setTextColor(...this.config.colors.text)
+    this.pdf.text('Estadísticas de Bomberos', this.config.pageWidth / 2, this.yPosition, { align: 'center' })
+    
+    if (filters && this.hasActiveFilters(filters)) {
+      this.addFilterInfo(filters)
     }
+    
+    this.addGenerationDate()
+    this.yPosition += 15
+  }
 
-    // Función para agregar tabla simple
-    const addTable = (headers: string[], data: any[][], columnWidths: number[]) => {
-      let xPosition = 20
-      
-      // Encabezados
-      pdf.setFontSize(10)
-      pdf.setTextColor(255, 255, 255)
-      pdf.setFillColor(59, 130, 246)
-      
-      headers.forEach((header, index) => {
-        pdf.rect(xPosition, yPosition, columnWidths[index], 8, 'F')
-        pdf.text(header, xPosition + 2, yPosition + 5)
+  private hasActiveFilters(filters: PDFFilters): boolean {
+    return Object.values(filters).some(filter => filter !== "all")
+  }
+
+  private addFilterInfo(filters: PDFFilters): void {
+    this.pdf.setFontSize(12)
+    this.pdf.setTextColor(...this.config.colors.secondary)
+    
+    const activeFilters = Object.entries(filters)
+      .filter(([_, value]) => value !== "all")
+      .map(([key, value]) => `${this.capitalizeFirst(key)}: ${value}`)
+      .join(' | ')
+    
+    if (activeFilters) {
+      this.pdf.text(`Filtros: ${activeFilters}`, this.config.pageWidth / 2, this.yPosition + 8, { align: 'center' })
+      this.yPosition += 16
+    }
+  }
+
+  private addGenerationDate(): void {
+    this.pdf.setFontSize(10)
+    this.pdf.setTextColor(...this.config.colors.secondary)
+    const date = new Date().toLocaleDateString('es-AR')
+    this.pdf.text(`Generado: ${date}`, this.config.pageWidth / 2, this.yPosition + 8, { align: 'center' })
+  }
+
+  private addSectionTitle(title: string): void {
+    this.pdf.setFontSize(14)
+    this.pdf.setTextColor(...this.config.colors.text)
+    this.pdf.text(title, this.config.margin, this.yPosition)
+    this.yPosition += 10
+  }
+
+  private addTable(headers: string[], data: any[][], columnWidths: number[]): void {
+    this.addTableHeaders(headers, columnWidths)
+    this.addTableData(data, columnWidths)
+    this.yPosition += 10
+  }
+
+  private addTableHeaders(headers: string[], columnWidths: number[]): void {
+    let xPosition = this.config.margin
+    
+    this.pdf.setFontSize(10)
+    this.pdf.setTextColor(...this.config.colors.background)
+    this.pdf.setFillColor(...this.config.colors.primary)
+    
+    headers.forEach((header, index) => {
+      this.pdf.rect(xPosition, this.yPosition, columnWidths[index], 8, 'F')
+      this.pdf.text(header, xPosition + 2, this.yPosition + 5)
+      xPosition += columnWidths[index]
+    })
+    
+    this.yPosition += 8
+  }
+
+  private addTableData(data: any[][], columnWidths: number[]): void {
+    this.pdf.setTextColor(...this.config.colors.text)
+    
+    data.forEach(row => {
+      let xPosition = this.config.margin
+      row.forEach((cell, index) => {
+        this.pdf.rect(xPosition, this.yPosition, columnWidths[index], 6)
+        this.pdf.text(String(cell || ''), xPosition + 2, this.yPosition + 4)
         xPosition += columnWidths[index]
       })
-      yPosition += 8
+      this.yPosition += 6
+    })
+  }
 
-      // Datos
-      pdf.setTextColor(55, 65, 81)
-      data.forEach(row => {
-        xPosition = 20
-        row.forEach((cell, index) => {
-          pdf.rect(xPosition, yPosition, columnWidths[index], 6)
-          pdf.text(String(cell), xPosition + 2, yPosition + 4)
-          xPosition += columnWidths[index]
-        })
-        yPosition += 6
-      })
-      yPosition += 10
+  private checkNewPage(neededSpace: number, filters?: PDFFilters): void {
+    if (this.yPosition + neededSpace > this.config.pageHeight - this.config.margin) {
+      this.pdf.addPage()
+      this.yPosition = 20
+      this.addHeader(filters)
     }
+  }
 
-    // Función para verificar si necesitamos nueva página
-    const checkNewPage = (neededSpace: number) => {
-      if (yPosition + neededSpace > pageHeight - 20) {
-        pdf.addPage()
-        yPosition = 20
-        addHeader()
-      }
+  private capitalizeFirst(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1)
+  }
+
+  private getTrendIcon(trend: string): string {
+    const icons = { up: '↑ Aumento', down: '↓ Disminución', stable: '→ Estable' }
+    return icons[trend as keyof typeof icons] || '→ Estable'
+  }
+
+  private calculateTotals(statistics: Statistics) {
+    return {
+      totalFires: statistics.monthlyData.reduce((sum, item) => sum + item.incendios, 0),
+      totalAccidents: statistics.monthlyData.reduce((sum, item) => sum + item.accidentes, 0),
+      totalTransfers: statistics.monthlyData.reduce((sum, item) => sum + item.traslados, 0)
     }
+  }
+
+  generatePDF(statistics: Statistics, filters?: PDFFilters): void {
+    if (!statistics) return
+
+    const totals = this.calculateTotals(statistics)
 
     // Página 1: Resumen General
-    addHeader()
+    this.addHeader(filters)
     
-    addSectionTitle('Resumen General')
+    this.addSectionTitle('Resumen General')
     const summaryData = [
-      ['Total de Llamadas', statistics.totalCalls.toString()],
-      ['Total de Incendios', statistics.monthlyData.reduce((sum, item) => sum + item.incendios, 0).toString()],
-      ['Total de Accidentes', statistics.monthlyData.reduce((sum, item) => sum + item.accidentes, 0).toString()],
-      ['Total de Traslados', statistics.totalTransfers.toString()],
-      ['Promedio Unidades', statistics.avgUnits],
-      ['Tasa de Traslados', `${statistics.transferRate}%`]
+      ['Total de Incendios', totals.totalFires.toString()],
+      ['Total de Accidentes', totals.totalAccidents.toString()],
+      ['Total de Traslados', totals.totalTransfers.toString()]
     ]
-    addTable(['Parámetro', 'Valor'], summaryData, [60, 100])
+    this.addTable(['Parámetro', 'Valor'], summaryData, [80, 80])
 
-    checkNewPage(80)
-    addSectionTitle('Resumen Mensual')
-    const monthlyTableData = statistics.monthlyData.map(item => [
+    this.checkNewPage(80, filters)
+    this.addSectionTitle('Resumen Mensual')
+    const monthlyData = statistics.monthlyData.map(item => [
       item.month,
       item.incendios.toString(),
       item.accidentes.toString(),
-      item.traslados.toString(),
-      item.avgUnits.toString()
-    ])
-    addTable(['Mes', 'Incendios', 'Accidentes', 'Traslados', 'Prom. Unidades'], monthlyTableData, [30, 30, 30, 30, 40])
-
-    // Página 2: Localidades y Tipos de Servicio
-    pdf.addPage()
-    yPosition = 20
-    addHeader()
-
-    addSectionTitle('Top 10 Localidades')
-    const locationTableData = statistics.locationData.slice(0, 10).map(item => [
-      item.location,
-      item.count.toString()
-    ])
-    addTable(['Localidad', 'Incidentes'], locationTableData, [100, 60])
-
-    checkNewPage(80)
-    addSectionTitle('Top 8 Tipos de Servicio')
-    const serviceTypeTableData = statistics.serviceTypeData.slice(0, 8).map(item => [
-      item.type,
-      item.count.toString()
-    ])
-    addTable(['Tipo de Servicio', 'Cantidad'], serviceTypeTableData, [100, 60])
-
-    // Página 3: Códigos de Servicio y Unidades
-    pdf.addPage()
-    yPosition = 20
-    addHeader()
-
-    addSectionTitle('Top 10 Códigos de Servicio')
-    const codigoTableData = statistics.codigoServicioData.slice(0, 10).map(item => [
-      item.codigo,
-      item.count.toString()
-    ])
-    addTable(['Código', 'Cantidad'], codigoTableData, [40, 120])
-
-    checkNewPage(80)
-    addSectionTitle('Estadísticas de Unidades')
-    const unitsTableData = statistics.unitsByMonthData.map(item => [
-      item.month,
-      item.avgUnits.toString(),
-      item.totalUnits.toString(),
-      item.count.toString()
-    ])
-    addTable(['Mes', 'Promedio', 'Total', 'Intervenciones'], unitsTableData, [30, 30, 30, 30])
-
-    // Página 4: Traslados y Tendencias
-    pdf.addPage()
-    yPosition = 20
-    addHeader()
-
-    addSectionTitle('Traslados por Mes')
-    const transferTableData = statistics.transferData.map(item => [
-      item.month,
       item.traslados.toString()
     ])
-    addTable(['Mes', 'Traslados'], transferTableData, [60, 100])
+    this.addTable(['Mes', 'Incendios', 'Accidentes', 'Traslados'], monthlyData, [40, 40, 40, 40])
 
-    checkNewPage(60)
-    addSectionTitle('Análisis de Tendencias')
+    // Página 2: Datos por Ubicación y Tipo
+    this.pdf.addPage()
+    this.yPosition = 20
+    this.addHeader(filters)
+
+    this.addSectionTitle('Top 10 Localidades')
+    const locationData = statistics.locationData.slice(0, 10).map(item => [item.location, item.count.toString()])
+    this.addTable(['Localidad', 'Incidentes'], locationData, [100, 60])
+
+    this.checkNewPage(80, filters)
+    this.addSectionTitle('Top 8 Tipos de Servicio')
+    const serviceData = statistics.serviceTypeData.slice(0, 8).map(item => [item.type, item.count.toString()])
+    this.addTable(['Tipo de Servicio', 'Cantidad'], serviceData, [100, 60])
+
+    // Página 3: Códigos de Servicio y Tendencias
+    this.pdf.addPage()
+    this.yPosition = 20
+    this.addHeader(filters)
+
+    this.addSectionTitle('Top 10 Códigos de Servicio')
+    const codigoData = statistics.codigoServicioData.slice(0, 10).map(item => [item.codigo, item.count.toString()])
+    this.addTable(['Código', 'Cantidad'], codigoData, [80, 80])
+
+    this.checkNewPage(80, filters)
+    this.addSectionTitle('Análisis de Tendencias')
     const trendsData = [
-      ['Parámetro', 'Tendencia', 'Cambio'],
-      ['Llamadas', statistics.trends.calls.trend === 'up' ? '↑ Aumento' : statistics.trends.calls.trend === 'down' ? '↓ Disminución' : '→ Estable', Math.abs(statistics.trends.calls.change).toString()],
-      ['Incendios', statistics.trends.fires.trend === 'up' ? '↑ Aumento' : statistics.trends.fires.trend === 'down' ? '↓ Disminución' : '→ Estable', Math.abs(statistics.trends.fires.change).toString()],
-      ['Accidentes', statistics.trends.accidents.trend === 'up' ? '↑ Aumento' : statistics.trends.accidents.trend === 'down' ? '↓ Disminución' : '→ Estable', Math.abs(statistics.trends.accidents.change).toString()],
-      ['Traslados', statistics.trends.transfers.trend === 'up' ? '↑ Aumento' : statistics.trends.transfers.trend === 'down' ? '↓ Disminución' : '→ Estable', Math.abs(statistics.trends.transfers.change).toString()],
-      ['Unidades', statistics.trends.units.trend === 'up' ? '↑ Aumento' : statistics.trends.units.trend === 'down' ? '↓ Disminución' : '→ Estable', Math.abs(statistics.trends.units.change).toFixed(1)]
+      ['Incendios', this.getTrendIcon(statistics.trends.fires.trend), Math.abs(statistics.trends.fires.change).toString()],
+      ['Accidentes', this.getTrendIcon(statistics.trends.accidents.trend), Math.abs(statistics.trends.accidents.change).toString()]
     ]
-    addTable(['Parámetro', 'Tendencia', 'Cambio'], trendsData, [50, 50, 60])
+    this.addTable(['Parámetro', 'Tendencia', 'Cambio'], trendsData, [50, 60, 50])
 
-    // Guardar el PDF
-    pdf.save('estadisticas_bomberos.pdf')
+    this.pdf.save('estadisticas_bomberos.pdf')
   }
+}
+
+// Función principal exportada
+export const exportToPDF = async (statistics: Statistics, filters?: PDFFilters): Promise<void> => {
+  const generator = new PDFGenerator()
+  generator.generatePDF(statistics, filters)
+}
