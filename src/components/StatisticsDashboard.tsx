@@ -4,13 +4,19 @@ import { parsearDatosServicio, type DatosCSV } from "@/utils/parseData"
 import { groupServicesByYear } from "@/domain/groupServicesByYear"
 import { getServicesByMonth } from "@/domain/getServicesByMonth"
 import type { Sinister } from "@/model/siniester"
+import { classifyServices } from "@/domain/classifyServices"
+import { getYearlyStatisticsSummary } from "@/domain/getYearlyStatisticsOfAccidentsAndFires"
+import StatisticsDisplay from "./StatisticsDisplay"
+import { useState } from "react"
+import { Button } from "@/ui/button"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
 }
 
 export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
-  console.log(data)
+  const [ year, setYear ] = useState('2025')
+
   const wholeData = parsearDatosServicio(data ? data : {
   headers: [],
   rows: [],
@@ -30,6 +36,16 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
     siniestros.push(service)
   })
 
+  const accidentsAndFires = siniestros.map(anual => ({
+    year: anual.year,
+    byMonth: anual.servicesByMonth.map(month => ({
+      accidents: classifyServices(month).accidentes, 
+      fires: classifyServices(month).incendios, 
+    }))
+  }))
+
+  const statisticOfAccidentsAndFires = getYearlyStatisticsSummary(accidentsAndFires)
+    .filter(statistic => statistic.year == year)[0]
 
   if (!data) {
     return (
@@ -40,9 +56,15 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       </Card>
     )
   }
-
+  
   return (
-  <div className="space-y-6">
+    <div className="space-y-6">
+      { accidentsAndFires.map(statistic => (
+        <Button onClick={() => setYear(statistic.year)}>{statistic.year}</Button>
+      ))}
+      <StatisticsDisplay 
+        data={statisticOfAccidentsAndFires} 
+      />
     </div>
   )
 }
