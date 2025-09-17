@@ -3,7 +3,6 @@ import type { Servicio } from "@/model/service"
 export interface ClassifiedServices {
   accidentes: Servicio[]
   incendios: Servicio[]
-  rescates: Servicio[]
 }
 
 /**
@@ -15,57 +14,36 @@ export function classifyServices(
   servicios: Servicio[]
 ): ClassifiedServices {
   const tiposIncendio = [
-    "INCENDIO ESTRUCTURAL",
-    "INCENDIOS-OTROS",
-    "INSECTOS",
-    "Incendio Forestal",
-    "Incendio-Forestal",
-    "Incendio-otros",
-    "Incendios- Otros",
-    "Incendios-Comercios",
-    "Incendios-Industrias",
-    "Incendios-Otros",
-    "Incendios-Vehicular",
-    "Incendios-vivienda",
+    "1A", "1B", "1C", "1D", "1E", "1F", "1G", "1H", "1J", "1I",
   ]
 
-  const tiposAccidente = ["ACCIDENTE Aéreo", "Accidente-Transito"]
-
-  const tiposRescate = [
-    "RESCATE-SERvicio de ambulancia",
-    "Rescate-Animales",
-    "Rescate-Servicio de ambulancia",
-    "Rescate-animales",
-    "Rescate-personas",
-    "Rescate-servicio de ambulancia",
-    "Rescates- personas",
+  const tiposAccidente = ["2A",
+    "2B",
+    "2C",
+    "2D",
+    "2E",
+    "2F",
+    "2G",
+    "2H",
   ]
 
-  const normalizar = (str: string): string =>
-    str.toLowerCase().trim().replace(/\s+/g, " ")
-
-  const incendiosSet = new Set(tiposIncendio.map(normalizar))
-  const accidentesSet = new Set(tiposAccidente.map(normalizar))
-  const rescatesSet = new Set(tiposRescate.map(normalizar))
+  const incendiosSet = new Set(tiposIncendio)
+  const accidentesSet = new Set(tiposAccidente)
 
   const resultado: ClassifiedServices = {
     accidentes: [],
     incendios: [],
-    rescates: [],
   }
 
   servicios.forEach((servicio) => {
-    const tipoNormalizado = normalizar(servicio.tipoServicio)
+    const tipo = servicio.codigoServicio
 
-    if (incendiosSet.has(tipoNormalizado)) {
+    if (incendiosSet.has(tipo)) {
       resultado.incendios.push(servicio)
     } 
-    else if (accidentesSet.has(tipoNormalizado)) {
+    else if (accidentesSet.has(tipo)) {
       resultado.accidentes.push(servicio)
     } 
-    else if (rescatesSet.has(tipoNormalizado)) {
-      resultado.rescates.push(servicio)
-    }
   })
 
   return resultado
