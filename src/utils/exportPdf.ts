@@ -7,14 +7,44 @@ interface PDFFilters {
   location?: string
 }
 
-// Interfaz para los datos estadísticos
+// Interfaz para las estadísticas anuales
+interface YearlyStatistics {
+  year: number
+  accidents: {
+    average: number
+    mode: number | number[]
+    total: number
+    max: {
+      value: number
+      month: string
+      monthIndex: number
+    }
+    min: {
+      value: number
+      month: string
+      monthIndex: number
+    }
+  }
+  fires: {
+    average: number
+    mode: number | number[]
+    total: number
+    max: {
+      value: number
+      month: string
+      monthIndex: number
+    }
+    min: {
+      value: number
+      month: string
+      monthIndex: number
+    }
+  }
+}
+
+// Interfaz para los datos estadísticos actualizada
 interface Statistics {
-  monthlyData: Array<{
-    month: string
-    incendios: number
-    accidentes: number
-    traslados: number
-  }>
+  yearlyData: YearlyStatistics  // Cambiado de monthlyData a yearlyData (objeto único, no array)
   locationData: Array<{
     location: string
     count: number
@@ -165,39 +195,59 @@ class PDFGenerator {
     return icons[trend as keyof typeof icons] || '→ Estable'
   }
 
+  private formatMode(mode: number | number[]): string {
+    return Array.isArray(mode) ? mode.join(', ') : mode.toString()
+  }
+
   private calculateTotals(statistics: Statistics) {
     return {
-      totalFires: statistics.monthlyData.reduce((sum, item) => sum + item.incendios, 0),
-      totalAccidents: statistics.monthlyData.reduce((sum, item) => sum + item.accidentes, 0),
-      totalTransfers: statistics.monthlyData.reduce((sum, item) => sum + item.traslados, 0)
+      totalFires: statistics.yearlyData.fires.total,
+      totalAccidents: statistics.yearlyData.accidents.total,
+      // Mantener traslados como 0 o calcularlo de otra fuente si existe
+      totalTransfers: 0
     }
   }
 
   generatePDF(statistics: Statistics, filters?: PDFFilters): void {
-    if (!statistics) return
+    if (!statistics || !statistics.yearlyData) return
 
     const totals = this.calculateTotals(statistics)
+    const yearData = statistics.yearlyData
 
     // Página 1: Resumen General
     this.addHeader(filters)
     
     this.addSectionTitle('Resumen General')
     const summaryData = [
+      ['Año Analizado', yearData.year.toString()],
       ['Total de Incendios', totals.totalFires.toString()],
       ['Total de Accidentes', totals.totalAccidents.toString()],
-      ['Total de Traslados', totals.totalTransfers.toString()]
+      ['Promedio Mensual - Incendios', yearData.fires.average.toString()],
+      ['Promedio Mensual - Accidentes', yearData.accidents.average.toString()]
     ]
-    this.addTable(['Parámetro', 'Valor'], summaryData, [80, 80])
+    this.addTable(['Parámetro', 'Valor'], summaryData, [100, 60])
 
     this.checkNewPage(80, filters)
-    this.addSectionTitle('Resumen Mensual')
-    const monthlyData = statistics.monthlyData.map(item => [
-      item.month,
-      item.incendios.toString(),
-      item.accidentes.toString(),
-      item.traslados.toString()
-    ])
-    this.addTable(['Mes', 'Incendios', 'Accidentes', 'Traslados'], monthlyData, [40, 40, 40, 40])
+    this.addSectionTitle('Estadísticas Detalladas - Incendios')
+    const firesDetailData = [
+      ['Total Anual', yearData.fires.total.toString()],
+      ['Promedio Mensual', yearData.fires.average.toString()],
+      ['Valor Más Frecuente (Moda)', this.formatMode(yearData.fires.mode)],
+      ['Pico Máximo', `${yearData.fires.max.value} en ${yearData.fires.max.month}`],
+      ['Valor Mínimo', `${yearData.fires.min.value} en ${yearData.fires.min.month}`]
+    ]
+    this.addTable(['Estadística', 'Valor'], firesDetailData, [100, 60])
+
+    this.checkNewPage(80, filters)
+    this.addSectionTitle('Estadísticas Detalladas - Accidentes')
+    const accidentsDetailData = [
+      ['Total Anual', yearData.accidents.total.toString()],
+      ['Promedio Mensual', yearData.accidents.average.toString()],
+      ['Valor Más Frecuente (Moda)', this.formatMode(yearData.accidents.mode)],
+      ['Pico Máximo', `${yearData.accidents.max.value} en ${yearData.accidents.max.month}`],
+      ['Valor Mínimo', `${yearData.accidents.min.value} en ${yearData.accidents.min.month}`]
+    ]
+    this.addTable(['Estadística', 'Valor'], accidentsDetailData, [100, 60])
 
     // Página 2: Datos por Ubicación y Tipo
     this.pdf.addPage()
@@ -230,7 +280,7 @@ class PDFGenerator {
     ]
     this.addTable(['Parámetro', 'Tendencia', 'Cambio'], trendsData, [50, 60, 50])
 
-    this.pdf.save('estadisticas_bomberos.pdf')
+    this.pdf.save('estadisticas_bomberos_anuales.pdf')
   }
 }
 

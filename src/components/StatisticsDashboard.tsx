@@ -9,6 +9,7 @@ import { getYearlyStatisticsSummary } from "@/domain/getYearlyStatisticsOfAccide
 import StatisticsDisplay from "./StatisticsDisplay"
 import { useState } from "react"
 import { Button } from "@/ui/button"
+import { exportToPDF } from "@/utils/exportPdf"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -65,6 +66,24 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       <StatisticsDisplay 
         data={statisticOfAccidentsAndFires} 
       />
+      <Button onClick={() => {
+      exportToPDF({
+        yearlyData: statisticOfAccidentsAndFires,
+        locationData: [],
+        serviceTypeData: [], 
+        codigoServicioData: [],
+        trends: {
+          fires: {
+            trend: "Subida", 
+            change: 2,
+          },
+          accidents: {
+            trend: 'Bajada', 
+            change: 1,
+          }
+        }
+      })
+      }}>Descargar informe</Button>
     </div>
   )
 }
