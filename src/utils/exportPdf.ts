@@ -45,18 +45,6 @@ interface YearlyStatistics {
 // Interfaz para los datos estadísticos actualizada
 interface Statistics {
   yearlyData: YearlyStatistics  // Cambiado de monthlyData a yearlyData (objeto único, no array)
-  locationData: Array<{
-    location: string
-    count: number
-  }>
-  serviceTypeData: Array<{
-    type: string
-    count: number
-  }>
-  codigoServicioData: Array<{
-    codigo: string
-    count: number
-  }>
   trends: {
     fires: { trend: string; change: number }
     accidents: { trend: string; change: number }
@@ -249,30 +237,11 @@ class PDFGenerator {
     ]
     this.addTable(['Estadística', 'Valor'], accidentsDetailData, [100, 60])
 
-    // Página 2: Datos por Ubicación y Tipo
+    // Página 2: Análisis de Tendencias
     this.pdf.addPage()
     this.yPosition = 20
     this.addHeader(filters)
 
-    this.addSectionTitle('Top 10 Localidades')
-    const locationData = statistics.locationData.slice(0, 10).map(item => [item.location, item.count.toString()])
-    this.addTable(['Localidad', 'Incidentes'], locationData, [100, 60])
-
-    this.checkNewPage(80, filters)
-    this.addSectionTitle('Top 8 Tipos de Servicio')
-    const serviceData = statistics.serviceTypeData.slice(0, 8).map(item => [item.type, item.count.toString()])
-    this.addTable(['Tipo de Servicio', 'Cantidad'], serviceData, [100, 60])
-
-    // Página 3: Códigos de Servicio y Tendencias
-    this.pdf.addPage()
-    this.yPosition = 20
-    this.addHeader(filters)
-
-    this.addSectionTitle('Top 10 Códigos de Servicio')
-    const codigoData = statistics.codigoServicioData.slice(0, 10).map(item => [item.codigo, item.count.toString()])
-    this.addTable(['Código', 'Cantidad'], codigoData, [80, 80])
-
-    this.checkNewPage(80, filters)
     this.addSectionTitle('Análisis de Tendencias')
     const trendsData = [
       ['Incendios', this.getTrendIcon(statistics.trends.fires.trend), Math.abs(statistics.trends.fires.change).toString()],

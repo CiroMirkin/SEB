@@ -69,9 +69,6 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       <Button onClick={() => {
       exportToPDF({
         yearlyData: statisticOfAccidentsAndFires,
-        locationData: [],
-        serviceTypeData: [], 
-        codigoServicioData: [],
         trends: {
           fires: {
             trend: "Subida", 
