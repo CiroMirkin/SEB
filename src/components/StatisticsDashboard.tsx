@@ -11,6 +11,7 @@ import { useState } from "react"
 import { Button } from "@/ui/button"
 import { exportToPDF } from "@/utils/exportPdf"
 import { TablaServicios } from "./TablaDeServicios"
+import StreetAccidentsTree from "./StreetAccidentsTree"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -58,6 +59,11 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       </Card>
     )
   }
+
+  const accidentes = accidentsAndFires
+    .find(anual => anual.year === year)
+    ?.byMonth.flatMap(mes => mes.accidents) || []
+console.log(accidentes)
   
   return (
     <div className="space-y-6">
@@ -82,6 +88,9 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
         }
       })
       }}>Descargar informe</Button>
+
+      <StreetAccidentsTree servicios={accidentes} />
+
       <TablaServicios servicios={servicesByYear[year]} />
     </div>
   )
