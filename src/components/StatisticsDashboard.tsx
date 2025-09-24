@@ -10,6 +10,7 @@ import StatisticsDisplay from "./StatisticsDisplay"
 import { useState } from "react"
 import { Button } from "@/ui/button"
 import { exportToPDF } from "@/utils/exportPdf"
+import { TablaServicios } from "./TablaDeServicios"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -81,6 +82,7 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
         }
       })
       }}>Descargar informe</Button>
+      <TablaServicios servicios={servicesByYear[year]} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart3, TrendingUp, Hash, ArrowUp, ArrowDown, Calendar } from 'lucide-react';
+import { accidentsCodes, firesCodes } from '@/model/serviceCodes';
 
 interface ExtremeValue {
   value: number;
@@ -185,6 +186,16 @@ const StatisticsDisplay: React.FC<StatisticsDisplayProps> = ({ data }) => {
               />
             </div>
           </div>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <p className='flex flex-col'>
+            <span>Codigos de servicio tomados en cuenta para accidentes: </span>
+            <span>{accidentsCodes.join(' - ')}</span></p>
+          <p className='flex flex-col'>
+            <span>Codigos de servicio tomados en cuenta para incendios: </span>
+            <span>{firesCodes.join(' - ')}</span>  
+          </p>
         </div>
 
         {/* Resumen comparativo */}
