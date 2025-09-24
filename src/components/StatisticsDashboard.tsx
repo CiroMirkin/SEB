@@ -12,6 +12,8 @@ import { Button } from "@/ui/button"
 import { exportToPDF } from "@/utils/exportPdf"
 import { TablaServicios } from "./TablaDeServicios"
 import StreetAccidentsTree from "./StreetAccidentsTree"
+import countAccidentsAndFiresByType from "@/domain/countAccidentsAndFiresByType"
+import AccidentAndFireStats from "./AccidentAndFireStats"
 
 interface StatisticsDashboardProps {
   data: DatosCSV | null
@@ -33,11 +35,14 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       year,
       servicesByMonth: Array(12).fill([])
     }
-    for (let month = 0; month < 12; month++) {
-      service.servicesByMonth[month] = getServicesByMonth(services, month)
+    for (let month = 1; month <= 12; month++) {
+      // Asignar el mes 1 al índice 0
+      service.servicesByMonth[month - 1] = getServicesByMonth(services, month)
     }
     siniestros.push(service)
   })
+
+  console.log(siniestros)
 
   const accidentsAndFires = siniestros.map(anual => ({
     year: anual.year,
@@ -46,6 +51,9 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
       fires: classifyServices(month).incendios, 
     }))
   }))
+
+  const countAccidentsAndFiresByTypeOfTheYear = countAccidentsAndFiresByType(accidentsAndFires).find(count => count.year.toString() === year)
+
 
   const statisticOfAccidentsAndFires = getYearlyStatisticsSummary(accidentsAndFires)
     .filter(statistic => statistic.year == year)[0]
@@ -63,7 +71,6 @@ export function StatisticsDashboard({ data }: StatisticsDashboardProps) {
   const accidentes = accidentsAndFires
     .find(anual => anual.year === year)
     ?.byMonth.flatMap(mes => mes.accidents) || []
-console.log(accidentes)
   
   return (
     <div className="space-y-6">
@@ -73,6 +80,12 @@ console.log(accidentes)
       <StatisticsDisplay 
         data={statisticOfAccidentsAndFires} 
       />
+
+      {
+        countAccidentsAndFiresByTypeOfTheYear &&
+        <AccidentAndFireStats data={countAccidentsAndFiresByTypeOfTheYear} />
+      }
+
       <Button onClick={() => {
       exportToPDF({
         yearlyData: statisticOfAccidentsAndFires,
