@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronRight, MapPin, AlertTriangle, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronRight, MapPin, AlertTriangle, BarChart3, Navigation } from 'lucide-react';
 import type { Servicio } from "@/model/service";
 
 interface Props {
@@ -11,6 +11,7 @@ interface StreetNode {
   accidents: number;
   isIntersection: boolean;
   servicios: Servicio[];
+  intersectionStreets?: string[]; // Nuevo campo para almacenar las calles que forman la intersección
 }
 
 interface GroupNode {
@@ -19,6 +20,7 @@ interface GroupNode {
   totalAccidents: number;
   streets: StreetNode[];
   isExpanded: boolean;
+  isIntersectionGroup?: boolean; // Nuevo campo para identificar grupos de intersecciones
 }
 
 // Función para limpiar nombres de calles (copiada de getStreets.ts)
@@ -55,41 +57,78 @@ function trigramSimilarity(a: string, b: string): number {
   return intersection.size / union.size;
 }
 
-// Función para agrupar calles similares (copiada de getStreets.ts)
+// Función para extraer calles individuales de una intersección
+function extractStreetsFromIntersection(intersection: string): string[] {
+  return intersection.split(/ y | - | - /i).map(calle => calle.trim()).filter(calle => calle);
+}
+
+// Función para agrupar calles similares (modificada para mejor manejo de intersecciones)
 function groupSimilarStreets(streets: string[]): string[][] {
   const groups: string[][] = [];
   const processed = new Set<number>();
   
+  // Primero, separar intersecciones de calles individuales
+  const intersectionIndices: number[] = [];
+  const streetIndices: number[] = [];
+  
   for (let i = 0; i < streets.length; i++) {
-    if (processed.has(i)) continue;
+    if (streets[i].match(/ y | - | - | y$| -$| -$/i)) {
+      intersectionIndices.push(i);
+    } else {
+      streetIndices.push(i);
+    }
+  }
+  
+  // Agrupar calles individuales (como antes)
+  for (let i = 0; i < streetIndices.length; i++) {
+    const idx = streetIndices[i];
+    if (processed.has(idx)) continue;
     
-    const currentGroup: string[] = [streets[i]];
-    processed.add(i);
+    const currentGroup: string[] = [streets[idx]];
+    processed.add(idx);
     
-    // Solo agrupar si NO es una intersección
-    if (!streets[i].match(/ y | - | - | y$| -$| -$/i)) {
-      for (let j = i + 1; j < streets.length; j++) {
-        if (processed.has(j)) continue;
-        
-        // Verificar si es una intersección (no agrupar)
-        if (streets[j].match(/ y | - | - | y$| -$| -$/i)) continue;
-        
-        const similarity = trigramSimilarity(streets[i], streets[j]);
-        if (similarity > 0.5) { // Umbral ajustable
-          currentGroup.push(streets[j]);
-          processed.add(j);
-        }
+    for (let j = i + 1; j < streetIndices.length; j++) {
+      const jdx = streetIndices[j];
+      if (processed.has(jdx)) continue;
+      
+      const similarity = trigramSimilarity(streets[idx], streets[jdx]);
+      if (similarity > 0.5) {
+        currentGroup.push(streets[jdx]);
+        processed.add(jdx);
       }
     }
     
     groups.push(currentGroup);
   }
   
-  // Agregar las intersecciones que no se procesaron
-  for (let i = 0; i < streets.length; i++) {
-    if (!processed.has(i)) {
-      groups.push([streets[i]]);
+  // Agrupar intersecciones por calles componentes similares
+  for (let i = 0; i < intersectionIndices.length; i++) {
+    const idx = intersectionIndices[i];
+    if (processed.has(idx)) continue;
+    
+    const currentGroup: string[] = [streets[idx]];
+    processed.add(idx);
+    
+    const currentStreets = extractStreetsFromIntersection(streets[idx]);
+    
+    for (let j = i + 1; j < intersectionIndices.length; j++) {
+      const jdx = intersectionIndices[j];
+      if (processed.has(jdx)) continue;
+      
+      const jStreets = extractStreetsFromIntersection(streets[jdx]);
+      
+      // Verificar si comparten al menos una calle similar
+      const hasSimilarStreet = currentStreets.some(calleA => 
+        jStreets.some(calleB => trigramSimilarity(calleA, calleB) > 0.6)
+      );
+      
+      if (hasSimilarStreet) {
+        currentGroup.push(streets[jdx]);
+        processed.add(jdx);
+      }
     }
+    
+    groups.push(currentGroup);
   }
   
   return groups;
@@ -179,23 +218,37 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
     }
 
     const grupos: GroupNode[] = streetGroups.map((grupo, index) => {
-      const streetNodes: StreetNode[] = grupo.map(nombreCalle => ({
-        name: nombreCalle,
-        accidents: streetAccidentData[nombreCalle] || 0,
-        isIntersection: /( y | - | & )/i.test(nombreCalle),
-        servicios: getStreetsFromServices(servicios)[nombreCalle] || []
-      }));
+      const streetNodes: StreetNode[] = grupo.map(nombreCalle => {
+        const isIntersection = /( y | - | & )/i.test(nombreCalle);
+        return {
+          name: nombreCalle,
+          accidents: streetAccidentData[nombreCalle] || 0,
+          isIntersection,
+          servicios: getStreetsFromServices(servicios)[nombreCalle] || [],
+          intersectionStreets: isIntersection ? extractStreetsFromIntersection(nombreCalle) : undefined
+        };
+      });
 
       const totalAccidents = streetNodes.reduce((sum, street) => sum + street.accidents, 0);
       
       // Determinar nombre del grupo
       let groupName = grupo[0];
+      let isIntersectionGroup = streetNodes[0].isIntersection;
+      
       if (grupo.length > 1) {
-        // Encontrar el nombre más representativo (el más corto o común)
-        const nombreRepresentativo = grupo.reduce((prev, current) => 
-          prev.length <= current.length ? prev : current
-        );
-        groupName = `Grupo: ${nombreRepresentativo} (${grupo.length} variantes)`;
+        // Para grupos de intersecciones
+        if (isIntersectionGroup) {
+          // Encontrar calles comunes en las intersecciones
+          const allStreets = streetNodes.flatMap(node => node.intersectionStreets || []);
+          const uniqueStreets = [...new Set(allStreets)];
+          groupName = `Intersecciones relacionadas (${uniqueStreets.length} calles involucradas)`;
+        } else {
+          // Para grupos de calles individuales
+          const nombreRepresentativo = grupo.reduce((prev, current) => 
+            prev.length <= current.length ? prev : current
+          );
+          groupName = `Grupo: ${nombreRepresentativo} (${grupo.length} variantes)`;
+        }
       }
 
       return {
@@ -203,7 +256,8 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
         groupName,
         totalAccidents,
         streets: streetNodes.sort((a, b) => b.accidents - a.accidents),
-        isExpanded: expandedGroups.has(`group-${index}`)
+        isExpanded: expandedGroups.has(`group-${index}`),
+        isIntersectionGroup
       };
     });
 
@@ -273,7 +327,9 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
               <div key={group.id} className="border border-gray-200 rounded-lg overflow-hidden">
                 {/* Nodo Grupo */}
                 <div 
-                  className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+                  className={`flex items-center justify-between p-4 cursor-pointer transition-colors ${
+                    group.isIntersectionGroup ? 'bg-purple-50 hover:bg-purple-100' : 'bg-white hover:bg-gray-50'
+                  }`}
                   onClick={() => toggleGroup(group.id)}
                 >
                   <div className="flex items-center space-x-3 flex-1">
@@ -287,22 +343,32 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
                       )}
                     </div>
                     
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <h3 className="font-semibold text-gray-900 truncate max-w-md">
-                          {group.groupName}
-                        </h3>
+                    <div className="flex items-center space-x-2">
+                      {group.isIntersectionGroup && (
+                        <Navigation className="w-5 h-5 text-purple-600" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold text-gray-900 truncate max-w-md">
+                            {group.groupName}
+                          </h3>
+                          {group.isIntersectionGroup ? (
+                            <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">
+                              Intersecciones
+                            </span>
+                          ) : group.streets.length > 1 && (
+                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                              {group.streets.length} calles
+                            </span>
+                          )}
+                        </div>
                         {group.streets.length > 1 && (
-                          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                            {group.streets.length} calles
-                          </span>
+                          <p className="text-sm text-gray-500 mt-1 truncate max-w-lg">
+                            {group.streets.slice(0, 3).map(s => s.name).join(', ')}
+                            {group.streets.length > 3 && ` ... (+${group.streets.length - 3} más)`}
+                          </p>
                         )}
                       </div>
-                      {group.streets.length > 1 && (
-                        <p className="text-sm text-gray-500 mt-1 truncate max-w-lg">
-                          {group.streets.map(s => s.name).join(', ')}
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -322,7 +388,7 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
                   </div>
                 </div>
 
-                {/* Nodos Hijos (Calles individuales) */}
+                {/* Nodos Hijos (Calles individuales o intersecciones) */}
                 {expandedGroups.has(group.id) && group.streets.length > 1 && (
                   <div className="bg-gray-50 border-t border-gray-200">
                     {group.streets.map((street, index) => (
@@ -331,15 +397,26 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
                         className="flex items-center justify-between p-3 ml-8 border-l-2 border-gray-300 hover:bg-white transition-colors"
                       >
                         <div className="flex items-center space-x-3 flex-1">
-                          <MapPin className={`w-4 h-4 ${street.isIntersection ? 'text-purple-500' : 'text-gray-400'}`} />
-                          <div>
-                            <span className="text-sm font-medium text-gray-700">
-                              {street.name}
-                            </span>
-                            {street.isIntersection && (
-                              <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
-                                Intersección
+                          {street.isIntersection ? (
+                            <Navigation className="w-4 h-4 text-purple-500" />
+                          ) : (
+                            <MapPin className="w-4 h-4 text-gray-400" />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center flex-wrap gap-2">
+                              <span className="text-sm font-medium text-gray-700">
+                                {street.name}
                               </span>
+                              {street.isIntersection && (
+                                <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded">
+                                  Intersección
+                                </span>
+                              )}
+                            </div>
+                            {street.isIntersection && street.intersectionStreets && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                Calles: {street.intersectionStreets.join(' • ')}
+                              </div>
                             )}
                             <div className="text-xs text-gray-500 mt-1">
                               {street.servicios.length} servicios
@@ -368,25 +445,47 @@ export const StreetAccidentsTree = ({ servicios }: Props) => {
             ))}
           </div>
 
-          {/* Leyenda */}
+          {/* Leyenda Mejorada */}
           <div className="mt-8 p-4 bg-gray-100 rounded-lg">
-            <h3 className="font-semibold text-gray-900 mb-3">Leyenda de Intensidad</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
-                <span className="text-sm text-gray-600">40+ accidentes (Crítico)</span>
+            <h3 className="font-semibold text-gray-900 mb-3">Leyenda</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium text-gray-700 mb-2">Intensidad de Accidentes</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-red-500 rounded"></div>
+                    <span className="text-sm text-gray-600">40+ (Crítico)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-orange-500 rounded"></div>
+                    <span className="text-sm text-gray-600">25-39 (Alto)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                    <span className="text-sm text-gray-600">15-24 (Medio)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-green-500 rounded"></div>
+                    <span className="text-sm text-gray-600">&lt;15 (Bajo)</span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-orange-500 rounded"></div>
-                <span className="text-sm text-gray-600">25-39 accidentes (Alto)</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-yellow-500 rounded"></div>
-                <span className="text-sm text-gray-600">15-24 accidentes (Medio)</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
-                <span className="text-sm text-gray-600">&lt;15 accidentes (Bajo)</span>
+              <div>
+                <h4 className="font-medium text-gray-700 mb-2">Tipos de Calles</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Navigation className="w-4 h-4 text-purple-500" />
+                    <span className="text-sm text-gray-600">Intersección</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">Calle individual</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 bg-purple-100 rounded border border-purple-300"></div>
+                    <span className="text-sm text-gray-600">Grupo de intersecciones</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
